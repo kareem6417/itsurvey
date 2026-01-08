@@ -1,6 +1,6 @@
 <?php
 // config.php
-$host = 'mandiricoal.co.id';
+$host = 'mip-appserver02.mandiricoal.co.id';
 $db   = 'survey_it';
 $user = 'admin';
 $pass = 'Jam10pagi#';
