@@ -1,6 +1,6 @@
 <?php
 // config.php
-$host = 'localhost';
+$host = 'mandiricoal.co.id';
 $db   = 'survey_it';
 $user = 'admin';
 $pass = 'Jam10pagi#';
