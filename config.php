@@ -1,9 +1,9 @@
 <?php
 // config.php
-$host = 'mip-appserver02.mandiricoal.co.id';
+$host = 'localhost';
 $db   = 'survey_it';
 $user = 'admin';
-$pass = 'Jam10pagi#';
+$pass = 'Jam10pagi';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$db", $user, $pass);
