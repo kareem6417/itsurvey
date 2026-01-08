@@ -1,9 +1,9 @@
 <?php
 // config.php
-$host = 'localhost';
+$host = 'mandiricoal.co.id';
 $db   = 'survey_it';
-$user = 'root';
-$pass = '';
+$user = 'admin';
+$pass = 'Jam10pagi#';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$db", $user, $pass);
