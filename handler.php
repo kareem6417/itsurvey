@@ -2,20 +2,15 @@
 // handler.php
 require 'config.php';
 header('Content-Type: application/json');
-
-// Matikan display error agar tidak merusak format JSON
 error_reporting(0);
 ini_set('display_errors', 0);
 
 $action = $_GET['action'] ?? '';
 
-// =======================================================================
-// 1. LOGIC PENCARIAN NIK (TIDAK DIUBAH - SESUAI BACKUP ASLI)
-// =======================================================================
 if ($action == 'search_nik') {
     $nik = $_GET['nik'] ?? '';
 
-    // API CONFIG ASLI DARI BACKUP ANDA
+    // API CONFIG
     $apiUrl = "http://mandiricoal.co.id:1880/master/employee/pernr/" . $nik;
     $apiKey = "ca6cda3462809fc894801c6f84e0cd8ecff93afb";
 
@@ -38,18 +33,50 @@ if ($action == 'search_nik') {
 
     $data = json_decode($response, true);
 
-    // MAPPING ASLI SESUAI BACKUP ANDA
     if (isset($data['employee']) && count($data['employee']) > 0) {
-        $emp = $data['employee'][0];
+        $userData = $data['employee'][0];
         
+        $companyNameFromApi = isset($userData['BUTXT']) ? trim($userData['BUTXT']) : (isset($userData['ABKTX']) ? trim($userData['ABKTX']) : 'Unknown Company');
+        
+        // ---------------------------------------------------------
+        // PERBAIKAN UTAMA: GUNAKAN FIELD 'GBPAS'
+        // ---------------------------------------------------------
+        // Data JSON: "GBPAS":"19971020"
+        $dobRaw = isset($userData['GBPAS']) ? trim($userData['GBPAS']) : ''; 
+        $dobFormatted = '';
+
+        // Bersihkan data (ambil angka saja)
+        $cleanDate = preg_replace('/[^0-9]/', '', $dobRaw);
+
+        // Format SAP YYYYMMDD (8 digit) kita ubah jadi YYYY-MM-DD
+        if (strlen($cleanDate) === 8) {
+            $y = substr($cleanDate, 0, 4);
+            $m = substr($cleanDate, 4, 2);
+            $d = substr($cleanDate, 6, 2);
+            $dobFormatted = "$y-$m-$d"; // Hasil: 1997-10-20
+        } 
+
+        // Cek Database Perusahaan
+        $stmt = $pdo->prepare("SELECT id FROM companies WHERE name = ? LIMIT 1");
+        $stmt->execute([$companyNameFromApi]);
+        $companyDB = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($companyDB) {
+            $companyId = $companyDB['id'];
+        } else {
+            $stmtInsert = $pdo->prepare("INSERT INTO companies (name, code) VALUES (?, ?)");
+            $codeDummy = strtoupper(substr(str_replace(' ', '', $companyNameFromApi), 0, 5)); 
+            $stmtInsert->execute([$companyNameFromApi, $codeDummy]);
+            $companyId = $pdo->lastInsertId();
+        }
+
         $result = [
-            'nik' => $emp['pernr'],
-            'name' => $emp['cname'],
-            'email' => $emp['email_internet'],
-            'company_name' => $emp['company_name'],
-            'company_id' => $emp['company_id'],
-            'division' => $emp['org_unit_name'],
-            'join_date' => $emp['hire_date_formatted']
+            'name' => $userData['CNAME'] ?? '',
+            'email' => $userData['UMAIL'] ?? '',
+            'division' => $userData['ORGTX'] ?? '',
+            'company_name' => $companyNameFromApi,
+            'company_id' => $companyId,
+            'dob_check' => $dobFormatted // Kunci Jawaban: "1997-10-20"
         ];
 
         echo json_encode(['status' => 'success', 'data' => $result]);
@@ -59,66 +86,26 @@ if ($action == 'search_nik') {
     exit;
 }
 
-// =======================================================================
-// 2. LOGIC SUBMIT (DITAMBAHKAN PENANGANAN CHECKBOX)
-// =======================================================================
+// Logic Submit Tetap Sama
 if ($action == 'submit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Ambil JSON input
     $input = json_decode(file_get_contents('php://input'), true);
-    
     try {
         $pdo->beginTransaction();
-
-        // 1. Simpan Data Responden
         $stmt = $pdo->prepare("INSERT INTO respondents (nik, full_name, email, division, company_id) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([
-            $input['nik'], 
-            $input['name'], 
-            $input['email'], 
-            $input['division'], 
-            $input['company_id'] ?: null
-        ]);
-        
+        $stmt->execute([$input['nik'], $input['name'], $input['email'], $input['division'], $input['company_id'] ?: null]);
         $respondent_id = $pdo->lastInsertId();
 
-        // 2. Simpan Jawaban
         $stmtAnswer = $pdo->prepare("INSERT INTO answers (respondent_id, question_id, answer_value, respondent_nik, respondent_name, respondent_email, respondent_company, respondent_division) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        
         $companyName = $input['company_name'] ?? '-';
 
         foreach ($input['answers'] as $q_id => $val) {
-            
-            // --- [MODIFIKASI: PENANGANAN CHECKBOX] ---
-            // Cek apakah $val adalah Array (Checkbox)?
-            if (is_array($val)) {
-                // Jika ya, gabungkan jadi string (contoh: "FICO, HR")
-                $final_value = implode(', ', $val);
-            } else {
-                // Jika bukan array, biarkan apa adanya
-                $final_value = $val;
-            }
-            // -----------------------------------------
-
-            $stmtAnswer->execute([
-                $respondent_id, 
-                $q_id, 
-                $final_value, // Gunakan variabel yang sudah di-cek ($final_value)
-                $input['nik'], 
-                $input['name'], 
-                $input['email'], 
-                $companyName, 
-                $input['division']
-            ]);
+            $stmtAnswer->execute([$respondent_id, $q_id, $val, $input['nik'], $input['name'], $input['email'], $companyName, $input['division']]);
         }
-
         $pdo->commit();
-        echo json_encode(['status' => 'success', 'message' => 'Data berhasil disimpan']);
-
+        echo json_encode(['status' => 'success']);
     } catch (Exception $e) {
         $pdo->rollBack();
-        // Catat error asli di log server, tapi kirim pesan aman ke user
-        error_log($e->getMessage()); 
-        echo json_encode(['status' => 'error', 'message' => 'Gagal menyimpan data ke database.']);
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
     }
     exit;
 }
