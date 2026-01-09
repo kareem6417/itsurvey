@@ -91,16 +91,11 @@ foreach ($questionsDB as $q) {
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            darkMode: 'class', // Mengaktifkan Dark Mode via class
+            darkMode: 'class',
             theme: {
                 extend: {
-                    fontFamily: {
-                        sans: ['Plus Jakarta Sans', 'sans-serif'],
-                    },
-                    colors: {
-                        darkCard: '#1e293b',
-                        darkBg: '#0f172a',
-                    }
+                    fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+                    colors: { darkCard: '#1e293b', darkBg: '#0f172a' }
                 }
             }
         }
@@ -111,10 +106,9 @@ foreach ($questionsDB as $q) {
     <link rel="icon" type="image/x-icon" href="favicon/favicon.ico">
     
     <style>
-        /* Custom Styles */
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
         
-        /* Background Mesh Gradient (Light Mode) */
+        /* Background Mesh */
         .bg-mesh-light {
             background-color: #f8fafc;
             background-image: 
@@ -123,8 +117,6 @@ foreach ($questionsDB as $q) {
                 radial-gradient(at 100% 0%, hsla(339,49%,90%,1) 0, transparent 50%);
             background-attachment: fixed;
         }
-
-        /* Background Mesh Gradient (Dark Mode) */
         .bg-mesh-dark {
             background-color: #0f172a;
             background-image: 
@@ -145,21 +137,26 @@ foreach ($questionsDB as $q) {
             border-radius: 9999px; font-weight: 700; 
         }
         .rating-circle:hover { transform: scale(1.1); }
-        .rating-circle.active { transform: scale(1.1); }
 
         .fade-in-up { animation: fadeInUp 0.5s ease-out forwards; opacity: 0; transform: translateY(15px); }
         @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
         
-        .progress-bar-container { position: fixed; top: 0; left: 0; width: 100%; height: 4px; z-index: 100; background: transparent; }
-        .progress-bar { height: 100%; background: linear-gradient(90deg, #4f46e5, #06b6d4); transition: width 0.4s ease; }
+        /* Progress Bar di Header */
+        .progress-container { position: fixed; top: 0; left: 0; width: 100%; height: 5px; z-index: 110; background: rgba(0,0,0,0.05); }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899); transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        /* Tooltip Arrow */
+        .tooltip-arrow::before {
+            content: ""; position: absolute; top: -5px; right: 10px;
+            border-width: 0 5px 5px 5px; border-style: solid; border-color: transparent transparent #1e293b transparent;
+        }
     </style>
 </head>
 
 <body x-data="themeHandler()" :class="isDark ? 'bg-mesh-dark text-slate-200' : 'bg-mesh-light text-slate-800'" class="antialiased min-h-screen transition-colors duration-300">
 
-    <div class="progress-bar-container" x-data="{ width: 0 }" 
-         @scroll.window="width = (window.pageYOffset / (document.body.scrollHeight - window.innerHeight)) * 100">
-         <div class="progress-bar" id="surveyProgressBar" style="width: 0%"></div>
+    <div class="progress-container">
+        <div class="progress-bar" id="smartProgressBar" style="width: 0%"></div>
     </div>
 
     <header class="fixed top-0 inset-x-0 z-40 transition-all duration-300" 
@@ -176,12 +173,19 @@ foreach ($questionsDB as $q) {
                 </div>
             </div>
             
-            <div class="flex items-center gap-3">
-                <button @click="toggleTheme()" class="p-2 rounded-full transition-colors duration-200" 
-                    :class="isDark ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700' : 'bg-white text-slate-600 hover:bg-slate-100 shadow-sm border border-slate-200'">
-                    <svg x-show="isDark" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                    <svg x-show="!isDark" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
-                </button>
+            <div class="flex items-center gap-4">
+                
+                <div class="relative group">
+                    <button @click="toggleTheme()" class="p-2 rounded-full transition-colors duration-200 relative z-10" 
+                        :class="isDark ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700 ring-1 ring-slate-700' : 'bg-white text-slate-600 hover:bg-slate-100 shadow-sm border border-slate-200'">
+                        <svg x-show="isDark" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                        <svg x-show="!isDark" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                    </button>
+
+                    <div class="absolute right-0 top-full mt-2 w-32 px-2 py-1.5 bg-slate-800 text-white text-xs text-center rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none shadow-lg tooltip-arrow z-20">
+                        Ganti Tema (Gelap/Terang)
+                    </div>
+                </div>
 
                 <div class="hidden sm:flex items-center gap-3 pl-4 pr-1.5 py-1.5 rounded-full border transition-all"
                     :class="isDark ? 'border-slate-700 bg-slate-800' : 'border-white bg-white/60 shadow-sm'">
@@ -217,19 +221,9 @@ foreach ($questionsDB as $q) {
 
             <?php if (empty($questions)): ?>
                 <div class="pro-card p-12 text-center fade-in-up" :class="isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'">
-                    <div class="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm border"
-                        :class="isDark ? 'bg-slate-900 border-slate-700 text-indigo-400' : 'bg-indigo-50 border-indigo-100 text-indigo-500'">
-                        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    </div>
                     <h3 class="font-bold text-2xl mb-3" :class="isDark ? 'text-white' : 'text-slate-800'">Survey Belum Tersedia</h3>
-                    <p class="leading-relaxed max-w-lg mx-auto mb-8" :class="isDark ? 'text-slate-400' : 'text-slate-500'">
-                        Mohon maaf, kuesioner sedang dalam tahap pembaruan.
-                    </p>
-                    <a href="index.php" class="inline-flex items-center gap-2 bg-slate-800 text-white font-bold py-3 px-8 rounded-xl hover:bg-slate-900 transition">
-                        Kembali ke Halaman Utama
-                    </a>
+                    <a href="index.php" class="inline-flex items-center gap-2 bg-slate-800 text-white font-bold py-3 px-8 rounded-xl hover:bg-slate-900 transition">Kembali</a>
                 </div>
-            
             <?php else: ?>
 
                 <form @submit.prevent="submitAll()" class="space-y-6">
@@ -251,10 +245,11 @@ foreach ($questionsDB as $q) {
                                     this.showQuestion = false; 
                                     this.$watch(`$store.answersStore.answers[${this.parentId}]`, (val) => {
                                         this.showQuestion = (val == this.triggerVal);
+                                        // PENTING: Saat hidden/show berubah, Hitung ulang Progress Bar!
                                         if (!this.showQuestion) {
                                             delete $store.answersStore.answers[<?php echo $id; ?>];
-                                            updateProgressBar(); // Update progress bar if hidden
                                         }
+                                        $dispatch('recalc-progress');
                                     });
                                 }
                             }
@@ -284,7 +279,7 @@ foreach ($questionsDB as $q) {
                                     <?php echo $q['text']; ?>
                                 </h3>
 
-                                <div class="w-full" @change="updateProgressBar()">
+                                <div class="w-full" @change="$dispatch('recalc-progress')">
                                     <?php if ($q['type'] == 'yes_no'): ?>
                                         <div class="grid grid-cols-2 gap-4 max-w-sm">
                                             <label class="cursor-pointer group">
@@ -293,7 +288,7 @@ foreach ($questionsDB as $q) {
                                                      :class="isDark 
                                                         ? ($store.answersStore.answers[<?php echo $id; ?>] == 'Ya' ? 'bg-emerald-900/30 border-emerald-500 text-emerald-400' : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800')
                                                         : ($store.answersStore.answers[<?php echo $id; ?>] == 'Ya' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50')">
-                                                    <span class="font-bold text-base">Ya</span>
+                                                    <span class="font-bold">Ya</span>
                                                 </div>
                                             </label>
                                             <label class="cursor-pointer group">
@@ -302,34 +297,22 @@ foreach ($questionsDB as $q) {
                                                      :class="isDark 
                                                         ? ($store.answersStore.answers[<?php echo $id; ?>] == 'Tidak' ? 'bg-red-900/30 border-red-500 text-red-400' : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800')
                                                         : ($store.answersStore.answers[<?php echo $id; ?>] == 'Tidak' ? 'bg-red-50 border-red-500 text-red-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50')">
-                                                    <span class="font-bold text-base">Tidak</span>
+                                                    <span class="font-bold">Tidak</span>
                                                 </div>
                                             </label>
                                         </div>
-
+                                    
                                     <?php elseif ($q['type'] == 'checkbox'): ?>
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" 
-                                             x-init="if (!($store.answersStore.answers[<?php echo $id; ?>] instanceof Array)) $store.answersStore.answers[<?php echo $id; ?>] = []">
-                                            
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" x-init="if (!($store.answersStore.answers[<?php echo $id; ?>] instanceof Array)) $store.answersStore.answers[<?php echo $id; ?>] = []">
                                             <?php foreach ($q['options'] as $opt): ?>
                                                 <label class="cursor-pointer group relative">
-                                                    <input type="checkbox" value="<?php echo htmlspecialchars($opt); ?>" 
-                                                           x-model="$store.answersStore.answers[<?php echo $id; ?>]" 
-                                                           class="sr-only" @change="updateProgressBar()">
-                                                    
+                                                    <input type="checkbox" value="<?php echo htmlspecialchars($opt); ?>" x-model="$store.answersStore.answers[<?php echo $id; ?>]" class="sr-only">
                                                     <div class="w-full py-3.5 px-5 rounded-xl flex items-center gap-3 transition-all duration-200 border"
                                                          :class="isDark
-                                                            ? ($store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') 
-                                                                ? 'border-indigo-500 bg-indigo-900/30 text-indigo-300' 
-                                                                : 'border-slate-700 bg-slate-900 text-slate-400 hover:bg-slate-800')
-                                                            : ($store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') 
-                                                                ? 'border-indigo-500 bg-indigo-50 text-indigo-700' 
-                                                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')">
-                                                        
+                                                            ? ($store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'border-indigo-500 bg-indigo-900/30 text-indigo-300' : 'border-slate-700 bg-slate-900 text-slate-400 hover:bg-slate-800')
+                                                            : ($store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')">
                                                         <div class="w-5 h-5 rounded border flex items-center justify-center transition-all duration-200"
-                                                             :class="isDark
-                                                                ? ($store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'bg-indigo-500 border-indigo-500' : 'border-slate-600 bg-slate-800')
-                                                                : ($store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300 bg-white')">
+                                                             :class="isDark ? ($store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'bg-indigo-500 border-indigo-500' : 'border-slate-600 bg-slate-800') : ($store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300 bg-white')">
                                                             <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-show="$store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>')"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                                                         </div>
                                                         <span class="font-medium"><?php echo htmlspecialchars($opt); ?></span>
@@ -345,12 +328,8 @@ foreach ($questionsDB as $q) {
                                                     <input type="radio" name="q_<?php echo $id; ?>" value="<?php echo $i; ?>" x-model="$store.answersStore.answers[<?php echo $id; ?>]" class="sr-only">
                                                     <div class="rating-circle border-2" 
                                                          :class="isDark
-                                                            ? ($store.answersStore.answers[<?php echo $id; ?>] == <?php echo $i; ?> 
-                                                                ? 'bg-indigo-500 border-indigo-500 text-white' 
-                                                                : 'border-slate-700 bg-slate-900 text-slate-500 hover:border-indigo-400 hover:text-indigo-400')
-                                                            : ($store.answersStore.answers[<?php echo $id; ?>] == <?php echo $i; ?> 
-                                                                ? 'bg-blue-600 border-blue-600 text-white' 
-                                                                : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-blue-400 hover:text-blue-500')">
+                                                            ? ($store.answersStore.answers[<?php echo $id; ?>] == <?php echo $i; ?> ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-slate-700 bg-slate-900 text-slate-500 hover:border-indigo-400 hover:text-indigo-400')
+                                                            : ($store.answersStore.answers[<?php echo $id; ?>] == <?php echo $i; ?> ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-blue-400 hover:text-blue-500')">
                                                         <?php echo $i; ?>
                                                     </div>
                                                 </label>
@@ -377,31 +356,26 @@ foreach ($questionsDB as $q) {
                     <div class="pt-8 flex justify-center pb-12">
                         <button type="submit" :disabled="isSubmitting" 
                             class="group relative w-full sm:w-auto min-w-[280px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-base font-bold py-4 px-10 rounded-2xl shadow-xl shadow-indigo-500/30 transform hover:-translate-y-1 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed overflow-hidden">
-                            
                             <div class="flex items-center justify-center gap-3 relative z-10">
-                                <svg x-show="isSubmitting" class="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                <svg x-show="isSubmitting" class="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                 <span x-show="!isSubmitting">KIRIM SURVEY SEKARANG</span>
-                                <span x-show="isSubmitting">Memproses Data...</span>
+                                <span x-show="isSubmitting">Memproses...</span>
                             </div>
                         </button>
                     </div>
                 </form>
-
             <?php endif; ?>
         </div>
     </main>
 
     <script>
-        // 1. Theme Handler (Dark Mode)
+        // 1. Theme Handler
         function themeHandler() {
             return {
                 isDark: false,
                 init() {
-                    // Cek LocalStorage atau Preferensi Sistem
                     if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                         this.isDark = true;
-                    } else {
-                        this.isDark = false;
                     }
                 },
                 toggleTheme() {
@@ -416,43 +390,73 @@ foreach ($questionsDB as $q) {
             Alpine.store('answersStore', { answers: {} });
         });
 
-        // 3. Update Progress Bar Logic
-        function updateProgressBar() {
-            const answers = Alpine.store('answersStore').answers;
-            // Hitung kasar: Jumlah jawaban dibagi total pertanyaan di database (approx)
-            // Note: Karena skip logic, progress bar mungkin tidak akan 100% sempurna akurasinya,
-            // tapi cukup memberikan feedback visual yang bagus.
-            const totalQuestions = <?php echo count($questions); ?>;
-            const answeredCount = Object.keys(answers).length;
-            
-            let percent = (answeredCount / totalQuestions) * 100;
-            if (percent > 100) percent = 100;
-
-            const bar = document.getElementById('surveyProgressBar');
-            if(bar) bar.style.width = percent + '%';
-        }
-
-        // 4. Form Logic
+        // 3. MAIN LOGIC
         function surveyForm() {
             return {
                 isSubmitting: false,
                 userData: <?php echo json_encode($user); ?>,
                 questionsData: <?php echo json_encode($questions); ?>,
 
+                // Init listener untuk hitung ulang progress
+                init() {
+                    this.$watch('$store.answersStore.answers', () => {
+                        this.calculateProgress();
+                    });
+                    // Event listener khusus untuk trigger manual dari x-data anak
+                    window.addEventListener('recalc-progress', () => {
+                        this.calculateProgress();
+                    });
+                },
+
+                // --- SMART PROGRESS BAR LOGIC ---
+                calculateProgress() {
+                    const answers = Alpine.store('answersStore').answers;
+                    let totalQuestions = 0;
+                    let completed = 0;
+
+                    for (const [id, q] of Object.entries(this.questionsData)) {
+                        totalQuestions++;
+
+                        // 1. Cek Apakah Pertanyaan Tampil?
+                        let isVisible = true;
+                        if (q.dependency_id) {
+                            // Jika Induknya belum dijawab, atau jawabannya tidak sesuai pemicu -> Hide
+                            if (answers[q.dependency_id] !== q.dependency_value) {
+                                isVisible = false;
+                            }
+                        }
+
+                        // 2. Hitung Progress
+                        if (!isVisible) {
+                            // JIKA HIDDEN (Di-skip) = DIANGGAP SELESAI
+                            completed++;
+                        } else {
+                            // JIKA TAMPIL = HARUS DIISI BARU DIANGGAP SELESAI
+                            const ans = answers[id];
+                            const isFilled = (ans !== undefined && ans !== null && ans !== "" && !(Array.isArray(ans) && ans.length === 0));
+                            
+                            if (isFilled) {
+                                completed++;
+                            }
+                        }
+                    }
+
+                    // Update UI
+                    const percent = Math.round((completed / totalQuestions) * 100);
+                    const bar = document.getElementById('smartProgressBar');
+                    if(bar) bar.style.width = percent + '%';
+                },
+
                 async submitAll() {
                     const submittedAnswers = Alpine.store('answersStore').answers;
-                    
                     let firstMissingId = null;
                     let missingCount = 0;
 
+                    // Validasi Wajib Isi (Hanya yang Visible)
                     for (const [id, q] of Object.entries(this.questionsData)) {
                         let isVisible = true;
-                        
                         if (q.dependency_id) {
-                            const parentAnswer = submittedAnswers[q.dependency_id];
-                            if (parentAnswer !== q.dependency_value) {
-                                isVisible = false;
-                            }
+                            if (submittedAnswers[q.dependency_id] !== q.dependency_value) isVisible = false;
                         }
 
                         if (isVisible) {
@@ -462,12 +466,9 @@ foreach ($questionsDB as $q) {
                             if (isEmpty) {
                                 if (!firstMissingId) firstMissingId = id;
                                 missingCount++;
-                                
-                                // Efek visual error (support dark mode)
                                 const el = document.getElementById('q-card-' + id);
                                 if(el) {
                                     el.classList.add('ring-2', 'ring-red-500', 'bg-red-50', 'dark:bg-red-900/20');
-                                    // Remove effect after 2s
                                     setTimeout(() => el.classList.remove('ring-2', 'ring-red-500', 'bg-red-50', 'dark:bg-red-900/20'), 3000);
                                 }
                             }
