@@ -397,52 +397,60 @@ foreach ($questionsDB as $q) {
                 userData: <?php echo json_encode($user); ?>,
                 questionsData: <?php echo json_encode($questions); ?>,
 
-                // Init listener untuk hitung ulang progress
                 init() {
+                    // Pantau perubahan jawaban untuk update progress bar
                     this.$watch('$store.answersStore.answers', () => {
                         this.calculateProgress();
                     });
-                    // Event listener khusus untuk trigger manual dari x-data anak
+                    // Event listener manual
                     window.addEventListener('recalc-progress', () => {
                         this.calculateProgress();
                     });
+                    
+                    // Hitung progress saat pertama kali load (pasti 0%)
+                    this.calculateProgress();
                 },
 
-                // --- SMART PROGRESS BAR LOGIC ---
+                // --- REVISI RUMUS PROGRESS BAR ---
                 calculateProgress() {
                     const answers = Alpine.store('answersStore').answers;
-                    let totalQuestions = 0;
-                    let completed = 0;
+                    
+                    let visibleQuestionsCount = 0; // Penyebut (Denominator)
+                    let filledQuestionsCount = 0;  // Pembilang (Numerator)
 
                     for (const [id, q] of Object.entries(this.questionsData)) {
-                        totalQuestions++;
-
-                        // 1. Cek Apakah Pertanyaan Tampil?
+                        
+                        // 1. Cek Visibility
                         let isVisible = true;
                         if (q.dependency_id) {
-                            // Jika Induknya belum dijawab, atau jawabannya tidak sesuai pemicu -> Hide
+                            // Jika induk belum dijawab ATAU jawaban tidak sesuai pemicu -> Sembunyi
+                            // Saat awal load, answers[induk] pasti undefined, jadi otomatis isVisible = false
                             if (answers[q.dependency_id] !== q.dependency_value) {
                                 isVisible = false;
                             }
                         }
 
-                        // 2. Hitung Progress
-                        if (!isVisible) {
-                            // JIKA HIDDEN (Di-skip) = DIANGGAP SELESAI
-                            completed++;
-                        } else {
-                            // JIKA TAMPIL = HARUS DIISI BARU DIANGGAP SELESAI
+                        // 2. Hitung Hanya yang Tampil
+                        if (isVisible) {
+                            visibleQuestionsCount++; // Tambah total soal yang harus dikerjakan saat ini
+
                             const ans = answers[id];
+                            // Cek apakah sudah diisi (tidak null/kosong)
                             const isFilled = (ans !== undefined && ans !== null && ans !== "" && !(Array.isArray(ans) && ans.length === 0));
                             
                             if (isFilled) {
-                                completed++;
+                                filledQuestionsCount++;
                             }
                         }
                     }
 
+                    // 3. Kalkulasi Persentase
+                    let percent = 0;
+                    if (visibleQuestionsCount > 0) {
+                        percent = Math.round((filledQuestionsCount / visibleQuestionsCount) * 100);
+                    }
+
                     // Update UI
-                    const percent = Math.round((completed / totalQuestions) * 100);
                     const bar = document.getElementById('smartProgressBar');
                     if(bar) bar.style.width = percent + '%';
                 },
