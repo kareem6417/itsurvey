@@ -7,41 +7,37 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-// 2. AMBIL INPUT (Bisa berupa 'MIP', 'MKP', atau angka '1')
+// 2. AMBIL INPUT
 $input_company = $_POST['company_id'] ?? null; 
 
-// 3. LOGIC PINTAR: CEK KE TABEL COMPANIES (BY ID atau BY CODE)
+// 3. LOGIC PINTAR: CEK KE TABEL COMPANIES
 $final_company_id = null;
 $final_company_name = $_POST['company_name'] ?? '';
 
 if ($input_company) {
-    // Query ini artinya: Cari perusahaan yang ID-nya X ... ATAU ... Code-nya X
     $stmt = $pdo->prepare("SELECT id, name, code FROM companies WHERE id = ? OR code = ? LIMIT 1");
     $stmt->execute([$input_company, $input_company]);
     $data = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($data) {
-        // KETEMU! Kita ambil ID Aslinya (Angka)
         $final_company_id = $data['id']; 
-        
-        // Jika nama kosong, ambil dari database biar rapi
         if (empty($final_company_name)) {
             $final_company_name = $data['name'];
         }
     }
 }
 
-// 4. SUSUN DATA USER (PENTING: company_id DIISI ANGKA ID HASIL PENCARIAN DI ATAS)
+// 4. SUSUN DATA USER
 $user = [
     'nik' => $_POST['nik'] ?? null,
     'name' => $_POST['name'] ?? 'User',
     'email' => $_POST['email'] ?? '',
     'division' => $_POST['division'] ?? '',
-    'company_id' => $final_company_id, // <--- Disini kuncinya! Isinya angka (misal: 1), bukan 'MIP' lagi
+    'company_id' => $final_company_id,
     'company_name' => $final_company_name
 ];
 
-// 5. AMBIL PERTANYAAN (Menggunakan ID yang sudah valid)
+// 5. AMBIL PERTANYAAN
 $stmt = $pdo->prepare("SELECT * FROM questions WHERE company_id IS NULL OR company_id = ? ORDER BY id ASC");
 $stmt->execute([$final_company_id]);
 $questionsDB = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -65,7 +61,6 @@ foreach ($questionsDB as $q) {
         $displayNumber = "$lastParentNum.$subCounter";
     }
 
-    // [BARU] Memproses opsi checkbox jika ada (misal: "FICO, HR, MM")
     $optionsArray = [];
     if (!empty($q['options'])) {
         $optionsArray = array_map('trim', explode(',', $q['options']));
@@ -75,7 +70,7 @@ foreach ($questionsDB as $q) {
         'id' => $q['id'],
         'text' => $q['question_text'],
         'type' => $q['input_type'], 
-        'options' => $optionsArray, // <--- Data opsi masuk sini
+        'options' => $optionsArray,
         'number' => $displayNumber,
         'is_child' => $isChild,
         'dependency_id' => !empty($q['dependency_id']) ? $q['dependency_id'] : null,
@@ -87,79 +82,116 @@ foreach ($questionsDB as $q) {
 ?>
 
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IT Satisfaction Survey - <?php echo htmlspecialchars($user['company_name']); ?></title>
+    <title>IT Satisfaction Survey</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class', // Mengaktifkan Dark Mode via class
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        darkCard: '#1e293b',
+                        darkBg: '#0f172a',
+                    }
+                }
+            }
+        }
+    </script>
+    
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" type="image/x-icon" href="favicon/favicon.ico">
+    
     <style>
+        /* Custom Styles */
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
         
-        .bg-mesh {
+        /* Background Mesh Gradient (Light Mode) */
+        .bg-mesh-light {
+            background-color: #f8fafc;
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(253,16%,96%,1) 0, transparent 50%), 
+                radial-gradient(at 50% 0%, hsla(225,39%,90%,1) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, hsla(339,49%,90%,1) 0, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        /* Background Mesh Gradient (Dark Mode) */
+        .bg-mesh-dark {
             background-color: #0f172a;
             background-image: 
                 radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-                radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
-                radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+                radial-gradient(at 50% 0%, hsla(225,39%,20%,1) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, hsla(339,49%,20%,1) 0, transparent 50%);
             background-attachment: fixed;
         }
 
         .pro-card {
-            background: rgba(255, 255, 255, 0.98);
             border-radius: 1.5rem;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            transition: transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
         }
-        .pro-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-
+        
         .rating-circle {
             transition: all 0.2s ease;
             width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
-            border-radius: 9999px; font-weight: 700; border: 2px solid #e2e8f0; background-color: #f8fafc; color: #64748b;
+            border-radius: 9999px; font-weight: 700; 
         }
-        .rating-circle:hover { border-color: #3b82f6; color: #3b82f6; background-color: white; transform: scale(1.1); }
-        .rating-circle.active { background-color: #2563eb; border-color: #2563eb; color: white; transform: scale(1.1); }
-
-        .toggle-card { transition: all 0.2s ease; border: 1px solid #e2e8f0; background-color: white; }
-        .toggle-card:hover { border-color: #94a3b8; background-color: #f8fafc; }
-        .toggle-card.active-yes { background-color: #ecfdf5; border-color: #10b981; color: #047857; }
-        .toggle-card.active-no { background-color: #fef2f2; border-color: #ef4444; color: #b91c1c; }
+        .rating-circle:hover { transform: scale(1.1); }
+        .rating-circle.active { transform: scale(1.1); }
 
         .fade-in-up { animation: fadeInUp 0.5s ease-out forwards; opacity: 0; transform: translateY(15px); }
         @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
         
-        .skip-logic-transition { transition: all 0.5s ease-in-out; }
+        .progress-bar-container { position: fixed; top: 0; left: 0; width: 100%; height: 4px; z-index: 100; background: transparent; }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, #4f46e5, #06b6d4); transition: width 0.4s ease; }
     </style>
 </head>
-<body class="bg-mesh min-h-screen text-slate-800 antialiased">
 
-    <header class="fixed top-0 inset-x-0 z-50 transition-all duration-500 ease-in-out" 
-        :class="{'bg-slate-900/80 backdrop-blur-md shadow-lg py-3 border-b border-white/5': scrolled, 'bg-transparent py-6': !scrolled}"
+<body x-data="themeHandler()" :class="isDark ? 'bg-mesh-dark text-slate-200' : 'bg-mesh-light text-slate-800'" class="antialiased min-h-screen transition-colors duration-300">
+
+    <div class="progress-bar-container" x-data="{ width: 0 }" 
+         @scroll.window="width = (window.pageYOffset / (document.body.scrollHeight - window.innerHeight)) * 100">
+         <div class="progress-bar" id="surveyProgressBar" style="width: 0%"></div>
+    </div>
+
+    <header class="fixed top-0 inset-x-0 z-40 transition-all duration-300" 
+        :class="scrolled ? (isDark ? 'bg-slate-900/80 border-slate-700' : 'bg-white/80 border-slate-200') + ' backdrop-blur-md shadow-sm border-b py-3' : 'bg-transparent py-6'"
         x-data="{ scrolled: false }" @scroll.window="scrolled = (window.pageYOffset > 20)">
         
         <div class="max-w-5xl mx-auto px-6 flex justify-between items-center">
-            <div class="flex items-center gap-5">
-                <img src="logo1.png" alt="Logo" class="h-12 w-auto object-contain drop-shadow-lg hover:scale-105 transition-transform duration-300">
+            <div class="flex items-center gap-4">
+                <img src="logo1.png" alt="Logo" class="h-10 w-auto object-contain drop-shadow-md">
                 <div class="hidden sm:block">
-                    <h1 class="font-bold text-lg leading-tight text-white tracking-tight">IT Satisfaction Survey</h1>
-                    <p class="text-xs font-medium uppercase tracking-wider opacity-70 text-blue-100">
-                        <?php echo htmlspecialchars($user['company_name']); ?>
-                    </p>
+                    <h1 class="font-bold text-lg leading-tight tracking-tight" :class="isDark ? 'text-white' : 'text-slate-800'">
+                        IT Satisfaction Survey
+                    </h1>
                 </div>
             </div>
             
-            <div class="flex items-center gap-3 pl-4 pr-1.5 py-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur-md shadow-inner transition-all hover:bg-white/10">
-                <div class="text-right">
-                    <p class="text-xs font-bold text-white"><?php echo explode(' ', $user['name'])[0]; ?></p>
-                    <p class="text-[10px] text-blue-200 opacity-80"><?php echo htmlspecialchars($user['division']); ?></p>
-                </div>
-                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-100 to-white flex items-center justify-center text-sm font-extrabold text-indigo-700 shadow-sm">
-                    <?php echo substr($user['name'], 0, 1); ?>
+            <div class="flex items-center gap-3">
+                <button @click="toggleTheme()" class="p-2 rounded-full transition-colors duration-200" 
+                    :class="isDark ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700' : 'bg-white text-slate-600 hover:bg-slate-100 shadow-sm border border-slate-200'">
+                    <svg x-show="isDark" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <svg x-show="!isDark" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
+
+                <div class="hidden sm:flex items-center gap-3 pl-4 pr-1.5 py-1.5 rounded-full border transition-all"
+                    :class="isDark ? 'border-slate-700 bg-slate-800' : 'border-white bg-white/60 shadow-sm'">
+                    <div class="text-right">
+                        <p class="text-xs font-bold" :class="isDark ? 'text-slate-200' : 'text-slate-700'"><?php echo explode(' ', $user['name'])[0]; ?></p>
+                        <p class="text-[10px]" :class="isDark ? 'text-slate-400' : 'text-slate-500'"><?php echo htmlspecialchars($user['division']); ?></p>
+                    </div>
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-sm font-extrabold text-white shadow-sm">
+                        <?php echo substr($user['name'], 0, 1); ?>
+                    </div>
                 </div>
             </div>
         </div>
@@ -168,31 +200,32 @@ foreach ($questionsDB as $q) {
     <main class="pt-32 pb-24 px-4" x-data="surveyForm()">
         <div class="max-w-3xl mx-auto space-y-6">
 
-            <div class="pro-card p-8 sm:p-10 text-center relative overflow-hidden fade-in-up shadow-2xl" style="animation-delay: 0.05s;">
+            <div class="pro-card p-8 sm:p-10 text-center relative overflow-hidden fade-in-up shadow-xl" 
+                 :class="isDark ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-100'"
+                 style="animation-delay: 0.05s;">
                 <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
                 <div class="relative z-10">
-                    <h2 class="text-2xl sm:text-3xl font-bold text-slate-800 mb-3 tracking-tight">
-                        Halo, <span class="text-indigo-600"><?php echo htmlspecialchars($user['name']); ?></span> 👋
+                    <h2 class="text-2xl sm:text-3xl font-bold mb-3 tracking-tight" :class="isDark ? 'text-white' : 'text-slate-800'">
+                        Halo, <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500"><?php echo htmlspecialchars($user['name']); ?></span> 👋
                     </h2>
-                    <p class="text-slate-500 leading-relaxed max-w-xl mx-auto text-base">
-                        Pendapat Anda sangat berharga bagi kami. Mohon isi survey ini dengan objektif.
+                    <p class="leading-relaxed max-w-xl mx-auto text-base" :class="isDark ? 'text-slate-400' : 'text-slate-500'">
+                        Pendapat Anda sangat berharga. Mohon isi survey ini dengan objektif untuk unit 
+                        <span class="font-bold text-indigo-500"><?php echo htmlspecialchars($user['company_name']); ?></span>.
                     </p>
                 </div>
             </div>
 
             <?php if (empty($questions)): ?>
-                <div class="pro-card p-12 text-center fade-in-up">
-                    <div class="w-20 h-20 bg-indigo-50 text-indigo-500 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-indigo-100">
+                <div class="pro-card p-12 text-center fade-in-up" :class="isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'">
+                    <div class="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm border"
+                        :class="isDark ? 'bg-slate-900 border-slate-700 text-indigo-400' : 'bg-indigo-50 border-indigo-100 text-indigo-500'">
                         <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     </div>
-                    <h3 class="font-bold text-2xl text-slate-800 mb-3">Survey Belum Tersedia</h3>
-                    <p class="text-slate-500 leading-relaxed max-w-lg mx-auto mb-8">
-                        Mohon maaf, formulir survei layanan IT untuk unit bisnis 
-                        <span class="font-bold text-indigo-600"><?php echo htmlspecialchars($user['company_name']); ?></span> 
-                        saat ini sedang dalam tahap persiapan atau pembaruan sistem.
+                    <h3 class="font-bold text-2xl mb-3" :class="isDark ? 'text-white' : 'text-slate-800'">Survey Belum Tersedia</h3>
+                    <p class="leading-relaxed max-w-lg mx-auto mb-8" :class="isDark ? 'text-slate-400' : 'text-slate-500'">
+                        Mohon maaf, kuesioner sedang dalam tahap pembaruan.
                     </p>
-                    <a href="index.php" class="inline-flex items-center gap-2 bg-slate-800 text-white font-bold py-3 px-8 rounded-xl hover:bg-slate-900 transition shadow-lg shadow-slate-200">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    <a href="index.php" class="inline-flex items-center gap-2 bg-slate-800 text-white font-bold py-3 px-8 rounded-xl hover:bg-slate-900 transition">
                         Kembali ke Halaman Utama
                     </a>
                 </div>
@@ -204,7 +237,8 @@ foreach ($questionsDB as $q) {
                     <?php foreach ($questions as $id => $q): ?>
                     
                     <div id="q-card-<?php echo $id; ?>" 
-                        class="pro-card p-6 sm:p-8 fade-in-up relative group skip-logic-transition" 
+                        class="pro-card p-6 sm:p-8 fade-in-up relative group transition-all duration-300 border" 
+                        :class="isDark ? 'bg-slate-800 border-slate-700 hover:border-slate-600' : 'bg-white border-slate-100 hover:shadow-lg'"
                         style="animation-delay: <?php echo $delay; ?>s;"
                         
                         x-data="{
@@ -217,7 +251,10 @@ foreach ($questionsDB as $q) {
                                     this.showQuestion = false; 
                                     this.$watch(`$store.answersStore.answers[${this.parentId}]`, (val) => {
                                         this.showQuestion = (val == this.triggerVal);
-                                        if (!this.showQuestion) delete $store.answersStore.answers[<?php echo $id; ?>];
+                                        if (!this.showQuestion) {
+                                            delete $store.answersStore.answers[<?php echo $id; ?>];
+                                            updateProgressBar(); // Update progress bar if hidden
+                                        }
                                     });
                                 }
                             }
@@ -227,34 +264,44 @@ foreach ($questionsDB as $q) {
                         x-transition:enter-start="opacity-0 scale-95"
                         x-transition:enter-end="opacity-100 scale-100"
                     >
-                        <div class="absolute left-0 top-6 bottom-6 w-1 bg-indigo-500 rounded-r-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div class="absolute left-0 top-6 bottom-6 w-1 rounded-r-full transition-opacity duration-300 opacity-0 group-hover:opacity-100"
+                             :class="isDark ? 'bg-indigo-400' : 'bg-indigo-500'"></div>
 
-                        <div class="flex gap-4 sm:gap-6 <?php echo $q['is_child'] ? 'ml-0 sm:ml-8 border-l-2 border-indigo-100 pl-4' : ''; ?>">
+                        <div class="flex gap-4 sm:gap-6 <?php echo $q['is_child'] ? 'ml-0 sm:ml-8 pl-4 border-l-2' : ''; ?>"
+                             :class="isDark ? 'border-slate-700' : 'border-indigo-50'">
+                            
                             <div class="flex-shrink-0">
-                                <div class="flex flex-col items-center justify-center w-14 h-14 rounded-2xl 
-                                    <?php echo $q['is_child'] ? 'bg-slate-100 text-slate-500' : 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'; ?> 
-                                    font-bold text-lg border border-transparent">
+                                <div class="flex flex-col items-center justify-center w-14 h-14 rounded-2xl font-bold text-lg border transition-colors"
+                                    :class="isDark 
+                                        ? (<?php echo $q['is_child'] ? "'bg-slate-900 text-slate-500 border-slate-700'" : "'bg-indigo-600 text-white border-transparent shadow-lg shadow-indigo-900/20'" ?>)
+                                        : (<?php echo $q['is_child'] ? "'bg-slate-50 text-slate-400 border-transparent'" : "'bg-indigo-600 text-white shadow-lg shadow-indigo-200 border-transparent'" ?>)">
                                     <?php echo $q['number']; ?>
                                 </div>
                             </div>
 
                             <div class="flex-grow pt-1">
-                                <h3 class="text-lg font-bold text-slate-800 leading-snug mb-6">
+                                <h3 class="text-lg font-bold leading-snug mb-6" :class="isDark ? 'text-slate-100' : 'text-slate-800'">
                                     <?php echo $q['text']; ?>
                                 </h3>
 
-                                <div class="w-full">
+                                <div class="w-full" @change="updateProgressBar()">
                                     <?php if ($q['type'] == 'yes_no'): ?>
                                         <div class="grid grid-cols-2 gap-4 max-w-sm">
                                             <label class="cursor-pointer group">
                                                 <input type="radio" name="q_<?php echo $id; ?>" value="Ya" x-model="$store.answersStore.answers[<?php echo $id; ?>]" class="sr-only">
-                                                <div class="toggle-card w-full py-3 px-4 rounded-xl flex items-center justify-center gap-3" :class="{'active-yes': $store.answersStore.answers[<?php echo $id; ?>] == 'Ya'}">
+                                                <div class="w-full py-3 px-4 rounded-xl flex items-center justify-center gap-3 border transition-all"
+                                                     :class="isDark 
+                                                        ? ($store.answersStore.answers[<?php echo $id; ?>] == 'Ya' ? 'bg-emerald-900/30 border-emerald-500 text-emerald-400' : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800')
+                                                        : ($store.answersStore.answers[<?php echo $id; ?>] == 'Ya' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50')">
                                                     <span class="font-bold text-base">Ya</span>
                                                 </div>
                                             </label>
                                             <label class="cursor-pointer group">
                                                 <input type="radio" name="q_<?php echo $id; ?>" value="Tidak" x-model="$store.answersStore.answers[<?php echo $id; ?>]" class="sr-only">
-                                                <div class="toggle-card w-full py-3 px-4 rounded-xl flex items-center justify-center gap-3" :class="{'active-no': $store.answersStore.answers[<?php echo $id; ?>] == 'Tidak'}">
+                                                <div class="w-full py-3 px-4 rounded-xl flex items-center justify-center gap-3 border transition-all"
+                                                     :class="isDark 
+                                                        ? ($store.answersStore.answers[<?php echo $id; ?>] == 'Tidak' ? 'bg-red-900/30 border-red-500 text-red-400' : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800')
+                                                        : ($store.answersStore.answers[<?php echo $id; ?>] == 'Tidak' ? 'bg-red-50 border-red-500 text-red-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50')">
                                                     <span class="font-bold text-base">Tidak</span>
                                                 </div>
                                             </label>
@@ -268,25 +315,23 @@ foreach ($questionsDB as $q) {
                                                 <label class="cursor-pointer group relative">
                                                     <input type="checkbox" value="<?php echo htmlspecialchars($opt); ?>" 
                                                            x-model="$store.answersStore.answers[<?php echo $id; ?>]" 
-                                                           class="sr-only">
+                                                           class="sr-only" @change="updateProgressBar()">
                                                     
-                                                    <div class="toggle-card w-full py-3.5 px-5 rounded-xl flex items-center gap-3 transition-all duration-200 border"
-                                                         :class="$store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') 
-                                                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm' 
-                                                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'">
+                                                    <div class="w-full py-3.5 px-5 rounded-xl flex items-center gap-3 transition-all duration-200 border"
+                                                         :class="isDark
+                                                            ? ($store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') 
+                                                                ? 'border-indigo-500 bg-indigo-900/30 text-indigo-300' 
+                                                                : 'border-slate-700 bg-slate-900 text-slate-400 hover:bg-slate-800')
+                                                            : ($store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') 
+                                                                ? 'border-indigo-500 bg-indigo-50 text-indigo-700' 
+                                                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')">
                                                         
                                                         <div class="w-5 h-5 rounded border flex items-center justify-center transition-all duration-200"
-                                                             :class="$store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') 
-                                                                ? 'bg-indigo-500 border-indigo-500' 
-                                                                : 'border-slate-300 bg-white'">
-                                                            
-                                                            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" 
-                                                                 x-show="$store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>')"
-                                                                 style="display: none;">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
-                                                            </svg>
+                                                             :class="isDark
+                                                                ? ($store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'bg-indigo-500 border-indigo-500' : 'border-slate-600 bg-slate-800')
+                                                                : ($store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300 bg-white')">
+                                                            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-show="$store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>')"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                                                         </div>
-                                                        
                                                         <span class="font-medium"><?php echo htmlspecialchars($opt); ?></span>
                                                     </div>
                                                 </label>
@@ -298,19 +343,29 @@ foreach ($questionsDB as $q) {
                                             <?php for ($i = 1; $i <= 10; $i++): ?>
                                                 <label class="cursor-pointer group relative">
                                                     <input type="radio" name="q_<?php echo $id; ?>" value="<?php echo $i; ?>" x-model="$store.answersStore.answers[<?php echo $id; ?>]" class="sr-only">
-                                                    <div class="rating-circle" :class="{'active': $store.answersStore.answers[<?php echo $id; ?>] == <?php echo $i; ?>}">
+                                                    <div class="rating-circle border-2" 
+                                                         :class="isDark
+                                                            ? ($store.answersStore.answers[<?php echo $id; ?>] == <?php echo $i; ?> 
+                                                                ? 'bg-indigo-500 border-indigo-500 text-white' 
+                                                                : 'border-slate-700 bg-slate-900 text-slate-500 hover:border-indigo-400 hover:text-indigo-400')
+                                                            : ($store.answersStore.answers[<?php echo $id; ?>] == <?php echo $i; ?> 
+                                                                ? 'bg-blue-600 border-blue-600 text-white' 
+                                                                : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-blue-400 hover:text-blue-500')">
                                                         <?php echo $i; ?>
                                                     </div>
                                                 </label>
                                             <?php endfor; ?>
                                         </div>
-                                        <div class="flex justify-between mt-2 text-xs text-slate-400 font-bold uppercase tracking-wider px-1">
-                                            <span class="text-red-400/80"><?php echo $q['label_min']; ?></span>
-                                            <span class="text-indigo-400/80"><?php echo $q['label_max']; ?></span>
+                                        <div class="flex justify-between mt-2 text-xs font-bold uppercase tracking-wider px-1" :class="isDark ? 'text-slate-500' : 'text-slate-400'">
+                                            <span><?php echo $q['label_min']; ?></span>
+                                            <span><?php echo $q['label_max']; ?></span>
                                         </div>
 
                                     <?php elseif ($q['type'] == 'text'): ?>
-                                        <textarea x-model="$store.answersStore.answers[<?php echo $id; ?>]" rows="3" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm resize-none focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="Tulis masukan Anda..."></textarea>
+                                        <textarea x-model="$store.answersStore.answers[<?php echo $id; ?>]" rows="3" 
+                                            class="w-full rounded-xl p-4 text-sm resize-none focus:ring-2 focus:ring-indigo-500 outline-none transition-all border"
+                                            :class="isDark ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-600' : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'"
+                                            placeholder="Tulis jawaban Anda di sini..."></textarea>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -319,111 +374,116 @@ foreach ($questionsDB as $q) {
                     <?php $delay += 0.08; ?>
                     <?php endforeach; ?>
 
-                    <div class="pt-8 flex justify-center">
+                    <div class="pt-8 flex justify-center pb-12">
                         <button type="submit" :disabled="isSubmitting" 
                             class="group relative w-full sm:w-auto min-w-[280px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-base font-bold py-4 px-10 rounded-2xl shadow-xl shadow-indigo-500/30 transform hover:-translate-y-1 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed overflow-hidden">
                             
                             <div class="flex items-center justify-center gap-3 relative z-10">
+                                <svg x-show="isSubmitting" class="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                 <span x-show="!isSubmitting">KIRIM SURVEY SEKARANG</span>
-                                <span x-show="isSubmitting">Mengirim...</span>
+                                <span x-show="isSubmitting">Memproses Data...</span>
                             </div>
                         </button>
                     </div>
                 </form>
 
             <?php endif; ?>
-
-        </div>
-
-        <div x-show="showSuccess" style="display: none;" 
-            class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4"
-            x-transition:enter="transition ease-out duration-300"
-            x-transition:enter-start="opacity-0 scale-90"
-            x-transition:enter-end="opacity-100 scale-100">
-            
-            <div class="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl relative overflow-hidden border border-white/20">
-                <div class="w-16 h-16 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-sm border border-green-100">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
-                </div>
-                <h3 class="text-xl font-bold text-slate-800 mb-2">Terima Kasih!</h3>
-                <p class="text-slate-500 text-sm mb-6 leading-relaxed">
-                    Data survey Anda telah berhasil kami terima.
-                </p>
-                <a href="index.php" class="block w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl hover:bg-slate-800 transition shadow-lg shadow-slate-500/20">
-                    Kembali ke Beranda
-                </a>
-            </div>
         </div>
     </main>
 
     <script>
+        // 1. Theme Handler (Dark Mode)
+        function themeHandler() {
+            return {
+                isDark: false,
+                init() {
+                    // Cek LocalStorage atau Preferensi Sistem
+                    if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                        this.isDark = true;
+                    } else {
+                        this.isDark = false;
+                    }
+                },
+                toggleTheme() {
+                    this.isDark = !this.isDark;
+                    localStorage.theme = this.isDark ? 'dark' : 'light';
+                }
+            }
+        }
+
+        // 2. Alpine Store Init
         document.addEventListener('alpine:init', () => {
             Alpine.store('answersStore', { answers: {} });
         });
 
+        // 3. Update Progress Bar Logic
+        function updateProgressBar() {
+            const answers = Alpine.store('answersStore').answers;
+            // Hitung kasar: Jumlah jawaban dibagi total pertanyaan di database (approx)
+            // Note: Karena skip logic, progress bar mungkin tidak akan 100% sempurna akurasinya,
+            // tapi cukup memberikan feedback visual yang bagus.
+            const totalQuestions = <?php echo count($questions); ?>;
+            const answeredCount = Object.keys(answers).length;
+            
+            let percent = (answeredCount / totalQuestions) * 100;
+            if (percent > 100) percent = 100;
+
+            const bar = document.getElementById('surveyProgressBar');
+            if(bar) bar.style.width = percent + '%';
+        }
+
+        // 4. Form Logic
         function surveyForm() {
             return {
                 isSubmitting: false,
-                showSuccess: false,
                 userData: <?php echo json_encode($user); ?>,
-                // 1. KITA BUTUH DATA STRUKTUR PERTANYAAN DI JS UNTUK PENGECEKAN
                 questionsData: <?php echo json_encode($questions); ?>,
 
                 async submitAll() {
                     const submittedAnswers = Alpine.store('answersStore').answers;
                     
-                    // --- VALIDASI BARU YANG LEBIH KETAT ---
                     let firstMissingId = null;
                     let missingCount = 0;
 
-                    // Loop semua pertanyaan dari Database
                     for (const [id, q] of Object.entries(this.questionsData)) {
-                        
-                        // Cek 1: Apakah pertanyaan ini HARUS TAMPIL?
                         let isVisible = true;
                         
-                        // Jika dia pertanyaan anak (punya dependency)
                         if (q.dependency_id) {
                             const parentAnswer = submittedAnswers[q.dependency_id];
-                            // Jika jawaban induk TIDAK SAMA dengan pemicu, maka dia tersembunyi
                             if (parentAnswer !== q.dependency_value) {
                                 isVisible = false;
                             }
                         }
 
-                        // Cek 2: Jika TAMPIL, apakah sudah DIJAWAB?
                         if (isVisible) {
                             const answer = submittedAnswers[id];
-                            
-                            // Cek kekosongan (Baik String kosong, Null, atau Array kosong untuk checkbox)
                             const isEmpty = (answer === undefined || answer === null || answer === "" || (Array.isArray(answer) && answer.length === 0));
 
                             if (isEmpty) {
-                                if (!firstMissingId) firstMissingId = id; // Simpan ID pertama yg kosong buat auto-scroll
+                                if (!firstMissingId) firstMissingId = id;
                                 missingCount++;
                                 
-                                // Beri efek visual error (Opsional, tapi bagus untuk UX)
-                                document.getElementById('q-card-' + id).classList.add('ring-2', 'ring-red-500', 'bg-red-50');
-                            } else {
-                                // Hapus efek error jika sudah diisi
+                                // Efek visual error (support dark mode)
                                 const el = document.getElementById('q-card-' + id);
-                                if(el) el.classList.remove('ring-2', 'ring-red-500', 'bg-red-50');
+                                if(el) {
+                                    el.classList.add('ring-2', 'ring-red-500', 'bg-red-50', 'dark:bg-red-900/20');
+                                    // Remove effect after 2s
+                                    setTimeout(() => el.classList.remove('ring-2', 'ring-red-500', 'bg-red-50', 'dark:bg-red-900/20'), 3000);
+                                }
                             }
                         }
                     }
 
                     if (missingCount > 0) {
                         alert(`Mohon lengkapi ${missingCount} pertanyaan yang belum diisi.`);
-                        
                         if (firstMissingId) {
                             const el = document.getElementById('q-card-' + firstMissingId);
                             if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         }
-                        return; // STOP DISINI
+                        return;
                     }
 
                     this.isSubmitting = true;
-                    
                     const payload = { ...this.userData, answers: submittedAnswers };
 
                     try {
@@ -435,13 +495,7 @@ foreach ($questionsDB as $q) {
 
                         const text = await res.text(); 
                         let json;
-                        
-                        try {
-                            json = JSON.parse(text);
-                        } catch (e) {
-                            console.error("Server Error:", text);
-                            throw new Error("Respon server tidak valid.");
-                        }
+                        try { json = JSON.parse(text); } catch (e) { throw new Error("Respon server tidak valid."); }
 
                         if (json.status === 'success') {
                             window.location.href = 'thankyou.php';
