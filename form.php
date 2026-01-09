@@ -366,31 +366,73 @@ foreach ($questionsDB as $q) {
                 isSubmitting: false,
                 showSuccess: false,
                 userData: <?php echo json_encode($user); ?>,
-                
+                // 1. KITA BUTUH DATA STRUKTUR PERTANYAAN DI JS UNTUK PENGECEKAN
+                questionsData: <?php echo json_encode($questions); ?>,
+
                 async submitAll() {
                     const submittedAnswers = Alpine.store('answersStore').answers;
                     
-                    // Validasi: Pastikan ada jawaban
-                    if (Object.keys(submittedAnswers).length === 0) {
-                        alert("Mohon isi setidaknya satu pertanyaan.");
-                        return;
+                    // --- VALIDASI BARU YANG LEBIH KETAT ---
+                    let firstMissingId = null;
+                    let missingCount = 0;
+
+                    // Loop semua pertanyaan dari Database
+                    for (const [id, q] of Object.entries(this.questionsData)) {
+                        
+                        // Cek 1: Apakah pertanyaan ini HARUS TAMPIL?
+                        let isVisible = true;
+                        
+                        // Jika dia pertanyaan anak (punya dependency)
+                        if (q.dependency_id) {
+                            const parentAnswer = submittedAnswers[q.dependency_id];
+                            // Jika jawaban induk TIDAK SAMA dengan pemicu, maka dia tersembunyi
+                            if (parentAnswer !== q.dependency_value) {
+                                isVisible = false;
+                            }
+                        }
+
+                        // Cek 2: Jika TAMPIL, apakah sudah DIJAWAB?
+                        if (isVisible) {
+                            const answer = submittedAnswers[id];
+                            
+                            // Cek kekosongan (Baik String kosong, Null, atau Array kosong untuk checkbox)
+                            const isEmpty = (answer === undefined || answer === null || answer === "" || (Array.isArray(answer) && answer.length === 0));
+
+                            if (isEmpty) {
+                                if (!firstMissingId) firstMissingId = id; // Simpan ID pertama yg kosong buat auto-scroll
+                                missingCount++;
+                                
+                                // Beri efek visual error (Opsional, tapi bagus untuk UX)
+                                document.getElementById('q-card-' + id).classList.add('ring-2', 'ring-red-500', 'bg-red-50');
+                            } else {
+                                // Hapus efek error jika sudah diisi
+                                const el = document.getElementById('q-card-' + id);
+                                if(el) el.classList.remove('ring-2', 'ring-red-500', 'bg-red-50');
+                            }
+                        }
+                    }
+
+                    if (missingCount > 0) {
+                        alert(`Mohon lengkapi ${missingCount} pertanyaan yang belum diisi.`);
+                        
+                        if (firstMissingId) {
+                            const el = document.getElementById('q-card-' + firstMissingId);
+                            if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                        return; // STOP DISINI
                     }
 
                     this.isSubmitting = true;
                     
-                    // Gabungkan Data User + Data Jawaban
                     const payload = { ...this.userData, answers: submittedAnswers };
 
                     try {
-                        // --- INI BAGIAN PENTINGNYA ---
-                        // Mengirim data ke handler.php dengan action=submit
                         const res = await fetch('handler.php?action=submit', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify(payload)
                         });
 
-                        // Cek respon dari handler.php
                         const text = await res.text(); 
                         let json;
                         
@@ -409,7 +451,7 @@ foreach ($questionsDB as $q) {
 
                     } catch(e) { 
                         console.error(e);
-                        alert("Terjadi kesalahan saat mengirim data. Cek Console untuk detail.");
+                        alert("Terjadi kesalahan saat mengirim data.");
                     } finally {
                         this.isSubmitting = false;
                     }
