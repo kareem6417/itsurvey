@@ -100,9 +100,7 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         </p>
                     </div>
                 </div>
-
-                <p class="pt-2 italic text-xs border-t border-slate-100">
-                    "Terima kasih atas kontribusi Bapak/Ibu. Bantu kami untuk bisa lebih baik membantu Anda."
+                <p>Akhir kata, kami sampaikan banyak terima kasih atas kontribusi bapak/ibu dalam pengisian kuisioner. Bantu kami untuk bisa lebih baik membantu anda.
                 </p>
             </div>
 
@@ -290,16 +288,14 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
 
         <div class="bg-slate-50 px-8 py-4 border-t border-slate-100 flex justify-center">
-            <p class="text-xs text-slate-400 font-semibold tracking-wide">© 2026 Mandirigroup IT Division</p>
+            <p class="text-xs text-slate-400 font-semibold tracking-wide">© 2026 IT Ops Department</p>
         </div>
     </div>
 
     <script>
     function surveyApp() {
         return {
-            // --- [MODIFIKASI] STATUS MODAL POPUP ---
             showWelcomeModal: true, 
-            // ---------------------------------------
 
             step: 1, 
             mode: 'api', 
