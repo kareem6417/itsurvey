@@ -102,6 +102,8 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 </div>
                 <p>Akhir kata, kami sampaikan banyak terima kasih atas kontribusi bapak/ibu dalam pengisian kuisioner. Bantu kami untuk bisa lebih baik membantu anda.
                 </p>
+            <p><span class="font-bold text-slate-800">IT Operations Department,</span></p>
+
             </div>
 
             <div class="bg-slate-50 px-6 py-4 flex justify-end shrink-0 border-t border-slate-200">
