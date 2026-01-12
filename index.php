@@ -87,7 +87,7 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                         <p class="text-rose-900/80 text-xs">
                             Ditutup pada tanggal:<br>
-                            <strong>31 Januari 2024, 17.00 WIB</strong>
+                            <strong>28 Februari 2025, 17.00 WIB</strong>
                         </p>
                     </div>
                 </div>
