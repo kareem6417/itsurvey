@@ -29,6 +29,87 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-100">
+    <div x-show="showWelcomeModal" style="display: none;" 
+         class="fixed inset-0 z-[100] flex items-center justify-center px-4 py-6"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0">
+        
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" 
+             @click="showWelcomeModal = false"></div>
+
+        <div class="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-fade-up"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0">
+            
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-4 flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="bg-white/20 p-1.5 rounded-lg">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <h2 class="text-lg font-bold text-white tracking-wide">Pengantar Survey</h2>
+                </div>
+                <button @click="showWelcomeModal = false" class="text-white/70 hover:text-white transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto text-slate-600 space-y-4 text-sm leading-relaxed custom-scroll">
+                
+                <p><span class="font-bold text-slate-800">Yth. Bapak/Ibu,</span></p>
+                <p>Divisi ITE senantiasa berupaya memberikan layanan TI terbaik. Demi meningkatkan kualitas pelayanan dan memahami kebutuhan Anda, kami mengharapkan kesediaan Bapak/Ibu meluangkan waktu sejenak untuk mengisi kuesioner ini.</p>
+
+                <div class="flex items-start gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <svg class="w-5 h-5 text-emerald-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    <p class="text-xs text-slate-500">Informasi data pribadi yang Anda berikan akan kami <strong>jaga kerahasiaannya</strong>.</p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 relative group hover:shadow-md transition-shadow">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="bg-amber-100 text-amber-600 p-1.5 rounded-lg">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path></svg>
+                            </span>
+                            <span class="font-bold text-amber-800 text-sm">Doorprize!</span>
+                        </div>
+                        <p class="text-amber-900/80 text-xs">
+                            Hadiah untuk <strong>10 responden beruntung</strong>. Mohon isi data identitas dengan lengkap.
+                        </p>
+                    </div>
+
+                    <div class="bg-rose-50 border border-rose-200 rounded-xl p-4 relative group hover:shadow-md transition-shadow">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="bg-rose-100 text-rose-600 p-1.5 rounded-lg">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            </span>
+                            <span class="font-bold text-rose-800 text-sm">Batas Waktu</span>
+                        </div>
+                        <p class="text-rose-900/80 text-xs">
+                            Ditutup pada tanggal:<br>
+                            <strong>31 Januari 2024, 17.00 WIB</strong>
+                        </p>
+                    </div>
+                </div>
+
+                <p class="pt-2 italic text-xs border-t border-slate-100">
+                    "Terima kasih atas kontribusi Bapak/Ibu. Bantu kami untuk bisa lebih baik membantu Anda."
+                </p>
+            </div>
+
+            <div class="bg-slate-50 px-6 py-4 flex justify-end shrink-0 border-t border-slate-200">
+                <button @click="showWelcomeModal = false" 
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-6 rounded-xl shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-0.5 active:scale-95 flex items-center gap-2 text-sm">
+                    <span>Mulai Pengisian</span>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <div x-data="surveyApp()" class="w-full max-w-2xl bg-white rounded-3xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] overflow-hidden border border-slate-200 relative">
         
@@ -207,6 +288,10 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <script>
     function surveyApp() {
         return {
+            // --- BAGIAN TAMBAHAN KHUSUS POPUP ---
+            showWelcomeModal: true, // Wajib TRUE agar popup muncul saat awal load
+            // ------------------------------------
+
             step: 1, 
             mode: 'api', 
             selectedCompanyId: '',
@@ -219,13 +304,13 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
             verifyError: false,
             formData: { nik: '', name: '', email: '', division: '' },
             
-            // Modal States
+            // Modal States (Alert System bawaan Anda)
             showModal: false,
-            modalType: 'error', // 'error' or 'warning'
+            modalType: 'error', 
             modalTitle: '',
             modalMessage: '',
 
-            // Fungsi Helper untuk Trigger Modal
+            // Fungsi Helper untuk Trigger Modal Alert
             triggerAlert(type, title, message) {
                 this.modalType = type;
                 this.modalTitle = title;
@@ -366,6 +451,6 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
             }
         }
     }
-    </script>
+</script>
 </body>
 </html>
