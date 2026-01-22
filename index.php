@@ -385,7 +385,7 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 }
             },
 
-            async checkNik() {
+            async searchkNik() {
                 if (this.nikInput.length < 3) {
                     this.triggerAlert('error', 'NIK Pendek', 'Masukkan NIK minimal 3 digit.');
                     return;
