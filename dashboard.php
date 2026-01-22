@@ -1,62 +1,101 @@
 <?php
-require 'config.php';
+session_start();
 
-// --- 1. LOGIKA AUTH SEDERHANA (Opsional: Ganti dengan login sistem Anda) ---
-// if (!isset($_SESSION['admin_logged_in'])) { header('Location: login.php'); exit; }
-
-// --- 2. AMBIL DATA RINGKASAN ---
-// Total Responden
-$stmt = $pdo->query("SELECT COUNT(*) FROM respondents");
-$totalRespondents = $stmt->fetchColumn();
-
-// Responden per Perusahaan
-$stmt = $pdo->query("SELECT company_id, COUNT(*) as count FROM respondents GROUP BY company_id");
-$companyStatsRaw = $stmt->fetchAll(PDO::FETCH_KEY_PAIR); // [id => count]
-
-// Ambil Nama Perusahaan agar label rapi
-$companies = $pdo->query("SELECT id, name, code FROM companies")->fetchAll(PDO::FETCH_ASSOC);
-$companyLabels = [];
-$companyData = [];
-$companyColors = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e'];
-
-foreach ($companies as $comp) {
-    $companyLabels[] = $comp['code'] ?: $comp['name'];
-    $companyData[] = $companyStatsRaw[$comp['id']] ?? 0;
+// 1. Cek Sesi Login
+if (!isset($_SESSION['is_admin_logged_in']) || $_SESSION['is_admin_logged_in'] !== true) {
+    header("Location: login.php");
+    exit();
 }
 
-// --- 3. AMBIL DATA PERTANYAAN & JAWABAN ---
-$questions = $pdo->query("SELECT * FROM questions ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
+require 'config.php';
 
-// Fungsi Helper untuk memproses jawaban
-function getQuestionStats($pdo, $q_id, $type) {
-    $stmt = $pdo->prepare("SELECT answer_value FROM answers WHERE question_id = ?");
-    $stmt->execute([$q_id]);
-    $answers = $stmt->fetchAll(PDO::FETCH_COLUMN);
+// 2. Ambil Info User & Hak Akses
+$adminName = $_SESSION['admin_name'] ?? 'Admin';
+$adminScope = $_SESSION['admin_scope'] ?? 0; // 'ALL' atau ID Company (3, 5, dll)
 
-    $stats = [];
-    
-    if ($type == 'checkbox') {
-        // Khusus Checkbox: Pecah "FICO, HR" menjadi item terpisah
-        foreach ($answers as $ans) {
-            $items = explode(',', $ans);
-            foreach ($items as $item) {
-                $item = trim($item);
-                if (!isset($stats[$item])) $stats[$item] = 0;
-                $stats[$item]++;
-            }
-        }
-    } elseif ($type == 'text') {
-        // Khusus Text: Ambil 5 terbaru saja untuk preview
-        $stats = array_slice($answers, 0, 5); 
-    } else {
-        // Rating & Yes/No
-        $stats = array_count_values($answers);
+// 3. Logika Filter Query
+$currentFilter = $adminScope;
+if ($adminScope === 'ALL' && isset($_GET['filter_company']) && $_GET['filter_company'] !== 'ALL') {
+    $currentFilter = $_GET['filter_company'];
+}
+
+// Persiapkan potongan SQL WHERE
+$whereClause = ""; 
+$params = [];
+
+if ($currentFilter !== 'ALL') {
+    $whereClause = " WHERE company_id = ? ";
+    $params = [$currentFilter];
+}
+
+// -----------------------------------------------------------
+// 4. QUERY DATA
+// -----------------------------------------------------------
+
+// A. Total Responden
+$sqlTotal = "SELECT COUNT(*) FROM respondents" . $whereClause;
+$stmt = $pdo->prepare($sqlTotal);
+$stmt->execute($params);
+$totalRespondents = $stmt->fetchColumn();
+
+// B. Chart Statistik Perusahaan
+$sqlStats = "SELECT company_id, COUNT(*) as count FROM respondents " . $whereClause . " GROUP BY company_id";
+$stmtStats = $pdo->prepare($sqlStats);
+$stmtStats->execute($params);
+$companyStatsRaw = $stmtStats->fetchAll(PDO::FETCH_KEY_PAIR);
+
+// Ambil Daftar Perusahaan
+$companies = $pdo->query("SELECT id, name, code FROM companies")->fetchAll(PDO::FETCH_ASSOC);
+
+// --- [BARU] Buat Mapping ID ke Nama PT untuk Banner ---
+$companyNamesMap = [];
+foreach ($companies as $c) {
+    // Kita simpan: ID => Nama PT (contoh: 3 => 'PT. Maritim Prima Mandiri')
+    $companyNamesMap[$c['id']] = $c['name']; 
+}
+
+// Siapkan Data Chart
+$companyLabels = [];
+$companyData = [];
+$companyColors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e'];
+
+foreach ($companies as $comp) {
+    if ($currentFilter === 'ALL' || $currentFilter == $comp['id']) {
+        $companyLabels[] = $comp['code'] ?: $comp['name'];
+        $companyData[] = $companyStatsRaw[$comp['id']] ?? 0;
     }
-    
-    // Sort keys agar rapi (Rating 1-10 berurut)
-    if ($type == 'rating_10') ksort($stats);
-    
-    return $stats;
+}
+
+// C. Data Jawaban
+$sqlQ = "SELECT * FROM questions";
+$paramsQ = [];
+
+if ($currentFilter !== 'ALL') {
+    $sqlQ .= " WHERE company_id = ?";
+    $paramsQ[] = $currentFilter;
+}
+
+$sqlQ .= " ORDER BY id ASC";
+
+$stmtQ = $pdo->prepare($sqlQ);
+$stmtQ->execute($paramsQ);
+$questions = $stmtQ->fetchAll(PDO::FETCH_ASSOC);
+function getAnswerStats($pdo, $question_id, $filterCompanyId) {
+    $sql = "SELECT a.answer_value, COUNT(*) as count 
+            FROM answers a 
+            JOIN respondents r ON a.respondent_id = r.id 
+            WHERE a.question_id = ?";
+    $queryParams = [$question_id];
+
+    if ($filterCompanyId !== 'ALL') {
+        $sql .= " AND r.company_id = ?";
+        $queryParams[] = $filterCompanyId;
+    }
+
+    $sql .= " GROUP BY a.answer_value";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($queryParams);
+    return $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 }
 ?>
 
@@ -65,140 +104,183 @@ function getQuestionStats($pdo, $q_id, $type) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IT Survey Dashboard</title>
+    <title>Dashboard Survey - <?= htmlspecialchars($adminName) ?></title>
+    <link rel="icon" type="image/x-icon" href="favicon/favicon.ico">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/x-icon" href="favicon/favicon.ico">
-    <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; }
-        .bg-mesh {
-            background-color: #0f172a;
-            background-image: 
-                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-                radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
-                radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
-            background-attachment: fixed;
-        }
-        .card { background: rgba(255, 255, 255, 0.95); border-radius: 1rem; border: 1px solid rgba(255,255,255,0.1); }
-    </style>
+    <style>body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; }</style>
 </head>
-<body class="bg-mesh min-h-screen text-slate-800 pb-20">
+<body>
 
-    <nav class="bg-slate-900/80 backdrop-blur-md border-b border-white/10 sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-            <div class="flex items-center gap-3">
-                <img src="logo1.png" class="h-8 w-auto"> 
-                <span class="text-white font-bold text-lg">IT Service Dashboard</span>
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row justify-between h-auto md:h-16 py-3 md:py-0 items-center gap-4">
+                <div class="flex items-center gap-3 w-full md:w-auto">
+                    <div class="bg-blue-600 text-white p-2 rounded-lg shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold text-slate-800 leading-none">Dashboard Survey IT</h1>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            Halo, <?= htmlspecialchars($adminName) ?> 
+                            <?php if($adminScope === 'ALL'): ?>
+                                <span class="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-bold ml-1">SUPER ADMIN</span>
+                            <?php else: ?>
+                                <span class="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-bold ml-1">ADMIN PT</span>
+                            <?php endif; ?>
+                        </p>
+                    </div>
+                </div>
+
+                <?php if ($adminScope === 'ALL'): ?>
+                <form method="GET" class="w-full md:w-auto flex items-center">
+                    <div class="relative w-full md:w-64">
+                        <select name="filter_company" onchange="this.form.submit()" class="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-700 py-2 pl-4 pr-8 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer font-medium">
+                            <option value="ALL" <?= $currentFilter === 'ALL' ? 'selected' : '' ?>>Semua Perusahaan</option>
+                            <?php foreach ($companies as $comp): ?>
+                                <option value="<?= $comp['id'] ?>" <?= $currentFilter == $comp['id'] ? 'selected' : '' ?>>
+                                    <?= $comp['code'] ?: $comp['name'] ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                    </div>
+                </form>
+                <?php endif; ?>
+                <div class="flex items-center w-full md:w-auto justify-end gap-2">
+                    <a href="export.php?filter_company=<?= $currentFilter ?>" target="_blank" class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-sm shadow-green-200">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+                        Export Excel
+                    </a>
+                    <a href="logout.php" class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors border border-red-100">
+                        Keluar
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    </a>
+                </div>                
             </div>
-            <a href="export.php" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                Download Report (Excel)
-            </a>
         </div>
     </nav>
 
-    <main class="max-w-7xl mx-auto px-6 py-10 space-y-8">
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="card p-6 flex flex-col justify-between shadow-lg shadow-indigo-500/10">
+        <?php if ($currentFilter !== 'ALL'): ?>
+            <div class="bg-blue-50 border border-blue-100 text-blue-700 px-4 py-3 rounded-xl mb-6 flex items-start gap-3">
+                <svg class="w-5 h-5 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 <div>
-                    <p class="text-slate-500 text-sm font-medium uppercase tracking-wider">Total Responden</p>
-                    <h2 class="text-4xl font-bold text-slate-800 mt-2"><?php echo number_format($totalRespondents); ?></h2>
+                    <p class="font-bold text-sm">Menampilkan Data Terfilter</p>
+                    <p class="text-xs mt-1 opacity-80">
+                        Anda sedang melihat hasil survey khusus untuk: 
+                        <strong>
+                            <?= isset($companyNamesMap[$currentFilter]) ? htmlspecialchars($companyNamesMap[$currentFilter]) : $currentFilter ?>
+                        </strong>
+                        <?php if($adminScope !== 'ALL') echo "(Akses Terbatas)"; ?>
+                    </p>
                 </div>
-                <div class="mt-4 text-xs text-green-600 bg-green-100 w-max px-2 py-1 rounded-full font-bold">
-                    Live Data
+            </div>
+        <?php endif; ?>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-slate-500 mb-1">Total Responden</p>
+                    <h2 class="text-4xl font-bold text-slate-800"><?php echo number_format($totalRespondents); ?></h2>
+                    <p class="text-xs text-slate-400 mt-2">
+                        <?= ($currentFilter === 'ALL') ? 'Semua Perusahaan' : (isset($companyNamesMap[$currentFilter]) ? $companyNamesMap[$currentFilter] : 'Perusahaan Terpilih') ?>
+                    </p>
+                </div>
+                <div class="bg-blue-50 p-4 rounded-xl text-blue-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 </div>
             </div>
 
-            <div class="card p-6 md:col-span-2 shadow-lg shadow-indigo-500/10">
-                <p class="text-slate-500 text-sm font-medium uppercase tracking-wider mb-4">Partisipasi per Entitas</p>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <h3 class="text-sm font-bold text-slate-700 mb-4 uppercase tracking-wide">Partisipasi per Perusahaan</h3>
                 <div class="h-48">
                     <canvas id="companyChart"></canvas>
                 </div>
             </div>
         </div>
 
-        <h3 class="text-white text-xl font-bold mt-12 mb-6 border-l-4 border-indigo-500 pl-4">Analisis Jawaban per Pertanyaan</h3>
+        <div class="border-t border-slate-200 my-8"></div>
+
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold text-slate-800">Analisa Jawaban</h2>
+        </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <?php foreach ($questions as $q): 
-                $dataStats = getQuestionStats($pdo, $q['id'], $q['input_type']);
-                
-                // Jika data kosong, skip atau tampilkan info
-                if (empty($dataStats) && $q['input_type'] != 'text') continue;
+                $stats = getAnswerStats($pdo, $q['id'], $currentFilter);
+                $chartId = "chart_" . $q['id'];
+                $labels = array_keys($stats);
+                $values = array_values($stats);
+                $type = $q['input_type']; 
             ?>
-            
-            <div class="card p-6 shadow-md hover:shadow-xl transition-shadow duration-300">
-                <div class="flex justify-between items-start mb-4">
-                    <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded">Q<?php echo $q['id']; ?></span>
-                    <span class="text-slate-400 text-xs uppercase"><?php echo $q['input_type']; ?></span>
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                <div class="mb-4 h-16 overflow-hidden">
+                    <?php 
+                        $cleanQuestion = strip_tags($q['question_text']); 
+                    ?>
+                    <h4 class="text-sm font-semibold text-slate-700 line-clamp-2" title="<?= htmlspecialchars($cleanQuestion) ?>">
+                        <?= htmlspecialchars($cleanQuestion) ?>
+                    </h4>
+                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 mt-1 inline-block uppercase font-bold tracking-wider">
+                        <?= $type ?>
+                    </span>
                 </div>
-                <h4 class="text-slate-800 font-semibold mb-4 text-sm leading-relaxed min-h-[3rem]">
-                    <?php echo $q['question_text']; ?>
-                </h4>
 
-                <div class="relative w-full">
-                    <?php if ($q['input_type'] === 'text'): ?>
-                        <ul class="space-y-2 max-h-48 overflow-y-auto pr-2">
-                            <?php if(empty($dataStats)): ?>
-                                <li class="text-slate-400 italic text-sm">Belum ada jawaban text.</li>
+                <div class="relative h-48 w-full">
+                    <?php if ($type == 'text'): ?>
+                        <div class="h-full overflow-y-auto bg-slate-50 p-3 rounded text-xs text-slate-600 space-y-2 border border-slate-100">
+                            <?php if(empty($stats)): ?>
+                                <p class="text-center italic text-slate-400 mt-10">Belum ada jawaban text.</p>
                             <?php else: ?>
-                                <?php foreach ($dataStats as $ansText): ?>
-                                    <li class="bg-slate-50 p-3 rounded-lg text-sm text-slate-600 border border-slate-100">
-                                        "<?php echo htmlspecialchars($ansText); ?>"
-                                    </li>
-                                <?php endforeach; ?>
+                                <ul class="list-disc pl-4 space-y-1">
+                                    <?php foreach($stats as $ansText => $count): ?>
+                                        <li>
+                                            <span class="font-medium text-slate-800">"<?= htmlspecialchars($ansText) ?>"</span>
+                                            <span class="text-slate-400 ml-1">(<?= $count ?>)</span>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
                             <?php endif; ?>
-                        </ul>
-
-                    <?php else: ?>
-                        <div class="h-48">
-                            <canvas id="chart_<?php echo $q['id']; ?>"></canvas>
                         </div>
+                    <?php else: ?>
+                        <canvas id="<?= $chartId ?>"></canvas>
                         <script>
                             (function(){
-                                const ctx = document.getElementById('chart_<?php echo $q['id']; ?>').getContext('2d');
-                                const type = '<?php echo $q['input_type']; ?>';
-                                const labels = <?php echo json_encode(array_keys($dataStats)); ?>;
-                                const data = <?php echo json_encode(array_values($dataStats)); ?>;
+                                const ctx = document.getElementById('<?= $chartId ?>').getContext('2d');
+                                const type = '<?= $type ?>';
+                                const chartType = (type === 'rating_10' || type === 'checkbox') ? 'bar' : 'doughnut';
                                 
-                                // Config warna
-                                let bgColors = type === 'yes_no' ? ['#10b981', '#ef4444'] : '#6366f1';
-                                let chartType = type === 'yes_no' ? 'doughnut' : 'bar';
-                                
-                                // Khusus Checkbox jadi Horizontal Bar
-                                if (type === 'checkbox') {
-                                    chartType = 'bar';
-                                }
-
                                 new Chart(ctx, {
                                     type: chartType,
                                     data: {
-                                        labels: labels,
+                                        labels: <?php echo json_encode($labels); ?>,
                                         datasets: [{
                                             label: 'Jumlah',
-                                            data: data,
-                                            backgroundColor: bgColors,
-                                            borderRadius: 5,
-                                            borderWidth: 0
+                                            data: <?php echo json_encode($values); ?>,
+                                            backgroundColor: [
+                                                '#3b82f6', '#10b981', '#f59e0b', '#ef4444', 
+                                                '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'
+                                            ],
+                                            borderWidth: 0,
+                                            borderRadius: 4
                                         }]
                                     },
                                     options: {
                                         responsive: true,
                                         maintainAspectRatio: false,
-                                        indexAxis: type === 'checkbox' ? 'y' : 'x', // Checkbox horizontal
                                         plugins: {
-                                            legend: { display: type === 'yes_no' },
-                                            tooltip: {
-                                                callbacks: {
-                                                    label: function(context) {
-                                                        return context.raw + ' User';
-                                                    }
-                                                }
+                                            legend: { 
+                                                display: chartType === 'doughnut',
+                                                position: 'bottom',
+                                                labels: { boxWidth: 10, font: { size: 10 } }
                                             }
                                         },
-                                        scales: type !== 'yes_no' ? {
+                                        scales: chartType === 'bar' ? {
                                             y: { beginAtZero: true, grid: { display: false } },
                                             x: { grid: { display: false } }
                                         } : {}
