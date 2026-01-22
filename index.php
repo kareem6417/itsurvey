@@ -126,7 +126,7 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 Kembali
             </button>
             <div class="text-center">
-                <img src="logo1.png" alt="Logo" class="h-16 mx-auto object-contain hover:scale-105 transition-transform duration-500">
+                <img src="logo2.png" alt="Logo" class="h-16 mx-auto object-contain hover:scale-105 transition-transform duration-500">
             </div>
         </div>
 
