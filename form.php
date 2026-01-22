@@ -165,7 +165,7 @@ foreach ($questionsDB as $q) {
         
         <div class="max-w-5xl mx-auto px-6 flex justify-between items-center">
             <div class="flex items-center gap-4">
-                <img src="logo1.png" alt="Logo" class="h-10 w-auto object-contain drop-shadow-md">
+                <img src="logo2.png" alt="Logo" class="h-10 w-auto object-contain drop-shadow-md">
                 <div class="hidden sm:block">
                     <h1 class="font-bold text-lg leading-tight tracking-tight" :class="isDark ? 'text-white' : 'text-slate-800'">
                         IT Satisfaction Survey
