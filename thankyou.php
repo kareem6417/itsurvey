@@ -45,7 +45,7 @@
     <header class="absolute top-0 inset-x-0 z-10 py-6 px-6">
         <div class="max-w-5xl mx-auto flex justify-between items-center">
             <div class="flex items-center gap-4">
-                <img src="logo1.png" alt="Logo" class="h-10 w-auto object-contain drop-shadow-md">
+                <img src="logo2.png" alt="Logo" class="h-10 w-auto object-contain drop-shadow-md">
                 <div class="hidden sm:block">
                     <h1 class="font-bold text-lg text-white tracking-tight">IT Satisfaction Survey</h1>
                 </div>
