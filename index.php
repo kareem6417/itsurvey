@@ -303,275 +303,165 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </a>
     </div>
     <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.data('surveyForm', () => ({
-                // ============================================================
-                // 1. STATE VARIABLES
-                // ============================================================
-                step: 1,
-                mode: 'api', // 'api', 'manual', 'auto'
-                isLoading: false,
-                errorMessage: '',
-                verifyError: false,
-                
-                // Variabel Input
-                nikInput: '',
-                userDobInput: '',
-                
-                // Variabel Data
-                companies: <?php echo json_encode($companies); ?>, // Ambil dari PHP
-                selectedCompanyId: '',
-                selectedCompanyName: '',
-                
-                // Data Pembanding (Dari API)
-                apiDobCheck: '',
-                apiCompanyCode: '',
-                
-                // Form Data Utama
-                formData: { 
-                    nik: '', 
-                    name: '', 
-                    email: '', 
-                    division: '',
-                    department: '',
-                    position: '' 
-                },
-                
-                // Jawaban Survey
-                answers: {},
+    function surveyApp() {
+        return {
+            showWelcomeModal: true, 
 
-                // ============================================================
-                // 2. FUNGSI LOGIKA (Logic Anda)
-                // ============================================================
+            step: 1, 
+            mode: 'api', 
+            selectedCompanyId: '',
+            selectedCompanyName: '',
+            nikInput: '',
+            userDobInput: '',
+            apiDobCheck: '',
+            isLoading: false,
+            errorMessage: '',
+            verifyError: false,
+            formData: { nik: '', name: '', email: '', division: '' },
+            
+            // Modal States (Alert)
+            showModal: false,
+            modalType: 'error', 
+            modalTitle: '',
+            modalMessage: '',
 
-                // [FIX] Typo diperbaiki: searchkNik -> searchNik
-                async searchNik() {
-                    // Validasi Panjang NIK
-                    if (this.nikInput.length < 3) {
-                        this.triggerAlert('warning', 'NIK Terlalu Pendek', 'Mohon masukkan NIK minimal 3 digit.');
-                        return;
-                    }
+            triggerAlert(type, title, message) {
+                this.modalType = type;
+                this.modalTitle = title;
+                this.modalMessage = message;
+                this.showModal = true;
+            },
 
-                    this.isLoading = true;
-                    this.errorMessage = "";
+            goBack() {
+                this.resetForm();
+                this.step = 1;
+            },
 
-                    try {
-                        // PANGGIL API EKSTERNAL (Sesuai request Anda)
-                        const response = await fetch(`https://survey.mandiricoal.co.id/api/check-nik?nik=${this.nikInput}`);
+            resetForm() {
+                this.nikInput = '';
+                this.userDobInput = '';
+                this.apiDobCheck = '';
+                this.errorMessage = '';
+                this.verifyError = false;
+                this.formData = { nik: '', name: '', email: '', division: '' };
+            },
+
+            getTitle() {
+                if(this.step === 1) return "IT Satisfaction Survey";
+                if(this.step === 2) return "Pencarian NIK";
+                if(this.step === 3) return "Verifikasi Keamanan";
+                if(this.step === 4) return "Konfirmasi Data";
+            },
+
+            getSubtitle() {
+                if(this.step === 1) return "Silakan pilih unit bisnis Anda untuk memulai.";
+                if(this.step === 2) return "Masukkan NIK karyawan untuk validasi data.";
+                if(this.step === 3) return "Mohon konfirmasi tanggal lahir Anda.";
+                if(this.step === 4) return "Pastikan data diri Anda sudah benar.";
+            },
+            
+            checkCompanyType() {
+                const select = document.querySelector('select');
+                const option = select.options[select.selectedIndex];
+                if(option.value === "") {
+                    this.selectedCompanyId = "";
+                    this.selectedCompanyName = "";
+                    return;
+                }
+                this.selectedCompanyName = option.getAttribute('data-name');
+                if (this.selectedCompanyName && this.selectedCompanyName.toLowerCase().includes('mandiriland')) {
+                    this.mode = 'manual';
+                } else {
+                    this.mode = 'api';
+                }
+            },
+
+            nextStep() {
+                if (this.mode === 'manual') {
+                    this.formData.nik = '-'; 
+                    this.step = 4;
+                } else {
+                    this.step = 2;
+                }
+            },
+
+            async searchNik() {
+                if (!this.nikInput) return;
+                this.isLoading = true;
+                this.errorMessage = '';
+
+                try {
+                    const res = await fetch(`handler.php?action=search_nik&nik=${this.nikInput}`);
+                    const json = await res.json();
+                    
+                    if (json.status === 'success') {
+                        const d = json.data;
                         
-                        // Cek status HTTP
-                        if (!response.ok) throw new Error('Gagal menghubungi server API');
+                        // VALIDASI CROSS-CHECK COMPANY
+                        let userComp = this.selectedCompanyName.toLowerCase().replace(/pt\.?\s*/g, '').trim();
+                        let apiComp = (d.company_name || '').toLowerCase().replace(/pt\.?\s*/g, '').trim();
+                        const isMatch = apiComp.includes(userComp) || userComp.includes(apiComp);
 
-                        const data = await response.json();
-
-                        if (data.status === 'success') {
-                            // --- SKENARIO 1: DATA DITEMUKAN ---
-                            const emp = data.data;
-
-                            // Masukkan data ke Form
-                            this.formData = {
-                                nik: this.nikInput, // Gunakan input user agar aman
-                                name: emp.employee_name || emp.name || '', 
-                                email: emp.email || '',
-                                division: emp.division || '',
-                                department: emp.department || '',
-                                position: emp.position || ''
-                            };
-                            
-                            // Simpan data kunci untuk verifikasi
-                            this.apiDobCheck = emp.date_of_birth || ''; 
-                            this.apiCompanyCode = emp.company_code || '';
-
-                            // Cek Kelengkapan Data
-                            // Kita anggap lengkap jika semua field kritikal ada isinya
-                            const isDataComplete = emp.company_code && emp.division && emp.department && emp.position && emp.date_of_birth;
-
-                            if (isDataComplete) {
-                                // CASE A: Data Lengkap -> Mode AUTO
-                                this.mode = 'auto';
-
-                                // Auto-select Perusahaan di Dropdown
-                                // Mencari company di list PHP berdasarkan code dari API
-                                let foundCompany = this.companies.find(c => c.code === emp.company_code);
-                                if (foundCompany) {
-                                    this.selectedCompanyId = foundCompany.id;
-                                    this.selectedCompanyName = foundCompany.name;
-                                }
-
-                                // Lanjut ke Verifikasi Tanggal Lahir (Step 3)
-                                this.step = 3; 
-                                this.triggerAlert('success', 'Data Ditemukan', `Halo, ${this.formData.name}. Silakan verifikasi tanggal lahir Anda.`);
-                                
-                            } else {
-                                // CASE B: Data Ada tapi Tidak Lengkap -> Mode MANUAL
-                                this.mode = 'manual';
-                                
-                                this.triggerAlert(
-                                    'warning', 
-                                    'Data Belum Lengkap', 
-                                    'Data Anda ditemukan namun informasi belum lengkap. Silakan lengkapi kolom yang kosong.'
-                                );
-
-                                // Langsung ke Form Pengisian (Step 4)
-                                this.step = 4;
-                            }
-
-                        } else {
-                            // --- SKENARIO 2: DATA TIDAK DITEMUKAN ---
-                            // CASE C: Mode MANUAL Full
-                            this.mode = 'manual';
-                            
-                            // Reset form (kecuali NIK)
-                            this.formData = {
-                                nik: this.nikInput,
-                                name: '',
-                                email: '',
-                                division: '',
-                                department: '',
-                                position: ''
-                            };
-                            this.selectedCompanyId = '';
-                            this.selectedCompanyName = '';
-
+                        if (!isMatch) {
                             this.triggerAlert(
-                                'info', 
-                                'Data Tidak Ditemukan', 
-                                'NIK tidak ditemukan di database. Silakan isi data diri Anda secara manual.'
+                                'error', 
+                                'Data Tidak Sesuai', 
+                                `NIK ${this.nikInput} terdaftar di "${d.company_name}", sedangkan Anda memilih "${this.selectedCompanyName}". Mohon periksa kembali pilihan Anda.`
                             );
+                            
+                            this.isLoading = false;
+                            this.nikInput = ''; 
+                            return; 
+                        }
 
-                            // Langsung ke Form Pengisian (Step 4)
+                        this.formData = {
+                            nik: this.nikInput,
+                            name: d.name,
+                            email: d.email,
+                            division: d.division
+                        };
+                        this.apiDobCheck = d.dob_check;
+                        
+                        if (this.apiDobCheck) {
+                            this.step = 3; 
+                        } else {
+                            this.triggerAlert(
+                                'warning', 
+                                'Data Belum Lengkap', 
+                                'Data keamanan karyawan ini belum lengkap di sistem SAP. Silakan lanjutkan pengisian data secara manual.'
+                            );
+                            
+                            this.mode = 'manual';
+                            this.formData.nik = this.nikInput; 
                             this.step = 4;
                         }
-
-                    } catch (e) {
-                        console.error(e);
-                        // Fallback error handling
-                        this.triggerAlert('error', 'Gagal Koneksi', 'Gagal mengambil data dari server. Silakan coba lagi atau isi manual.');
-                        this.mode = 'manual';
-                        this.step = 4;
-                    } finally {
-                        this.isLoading = false;
-                    }
-                },
-
-                // Verifikasi Tanggal Lahir (Dipakai di Step 3)
-                verifyDob() {
-                    if (!this.userDobInput) {
-                        this.triggerAlert('warning', 'Peringatan', 'Mohon isi tanggal lahir.');
-                        return;
-                    }
-
-                    // Normalisasi String agar aman
-                    let inputVal = String(this.userDobInput).trim();
-                    let apiVal = String(this.apiDobCheck).trim();
-
-                    if (inputVal === apiVal) {
-                        // Cocok
-                        this.step = 4; 
-                        this.verifyError = false;
-                        this.triggerAlert('success', 'Verifikasi Berhasil', 'Identitas terkonfirmasi.');
                     } else {
-                        // Tidak Cocok
-                        this.verifyError = true;
-                        this.triggerAlert('error', 'Verifikasi Gagal', 'Tanggal lahir tidak sesuai dengan data sistem.');
+                        this.triggerAlert('error', 'Tidak Ditemukan', 'NIK yang Anda masukkan tidak terdaftar dalam database kami.');
                     }
-                },
-
-                // Cek Validitas Form Manual (Dipakai di tombol Lanjut Step 4)
-                isFormValid() {
-                    return this.formData.name && this.formData.email && this.selectedCompanyId;
-                },
-
-                // [TAMBAHAN PENTING] Fungsi Submit Akhir
-                async submitSurvey() {
-                    if (!this.selectedCompanyId) {
-                        this.triggerAlert('warning', 'Pilih Perusahaan', 'Mohon pilih perusahaan Anda.');
-                        return;
-                    }
-
-                    this.isLoading = true;
-
-                    // Ambil nama perusahaan jika belum ada
-                    if (!this.selectedCompanyName) {
-                        let selectEl = document.querySelector('select[x-model="selectedCompanyId"]');
-                        if (selectEl) {
-                            this.selectedCompanyName = selectEl.options[selectEl.selectedIndex].text;
-                        }
-                    }
-
-                    const payload = {
-                        nik: this.formData.nik,
-                        name: this.formData.name,
-                        email: this.formData.email,
-                        division: this.formData.division,
-                        department: this.formData.department,
-                        position: this.formData.position,
-                        company_id: this.selectedCompanyId,
-                        company_name: this.selectedCompanyName,
-                        answers: this.answers
-                    };
-
-                    try {
-                        const response = await fetch('handler.php?action=submit_survey', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                        
-                        const result = await response.json();
-
-                        if (result.status === 'success') {
-                            this.step = 5; // Finish Page
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                        } else {
-                            this.triggerAlert('error', 'Gagal Simpan', result.message || 'Terjadi kesalahan.');
-                        }
-                    } catch (e) {
-                        console.error(e);
-                        this.triggerAlert('error', 'Error', 'Gagal mengirim data survey.');
-                    } finally {
-                        this.isLoading = false;
-                    }
-                },
-
-                // ============================================================
-                // 3. HELPER FUNCTIONS
-                // ============================================================
-                
-                getTitle() {
-                    if(this.step === 1) return "IT Satisfaction Survey";
-                    if(this.step === 2) return "Pencarian NIK";
-                    if(this.step === 3) return "Verifikasi Keamanan";
-                    if(this.step === 4) return "Konfirmasi Data";
-                    return "Terima Kasih";
-                },
-
-                getSubtitle() {
-                    if(this.step === 1) return "Silakan mulai survey.";
-                    if(this.step === 2) return "Masukkan NIK karyawan untuk validasi data.";
-                    if(this.step === 3) return "Mohon konfirmasi tanggal lahir Anda.";
-                    if(this.step === 4) return "Pastikan data diri Anda sudah benar.";
-                    return "Survey Anda telah berhasil dikirim.";
-                },
-
-                triggerAlert(icon, title, text) {
-                    if (typeof Swal !== 'undefined') {
-                        Swal.fire({
-                            icon: icon,
-                            title: title,
-                            text: text,
-                            confirmButtonColor: '#2563eb'
-                        });
-                    } else {
-                        alert(`${title}\n${text}`);
-                    }
-                },
-                
-                goBack() {
-                    if (this.step > 1) this.step--;
+                } catch (e) {
+                    this.errorMessage = "Gagal koneksi server.";
+                } finally {
+                    this.isLoading = false;
                 }
-            }))
-        })
+            },
+
+            verifyDob() {
+                let inputVal = String(this.userDobInput).trim();
+                let apiVal = String(this.apiDobCheck).trim();
+
+                if (inputVal === apiVal) {
+                    this.step = 4; 
+                    this.verifyError = false;
+                } else {
+                    this.verifyError = true;
+                }
+            },
+
+            isFormValid() {
+                return this.formData.name && this.formData.email && this.selectedCompanyId;
+            }
+        }
+    }
     </script>
 </body>
 </html>
