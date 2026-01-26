@@ -174,7 +174,7 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Unit Bisnis</label>
                         <select x-model="selectedCompanyId" @change="checkCompanyType()" 
                             class="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-xl appearance-none font-bold text-slate-700 focus:outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer shadow-sm group-hover:border-blue-300">
-                            <option value="">-- Pilih Perusahaan --</option>
+                            <option value="">Pilih Perusahaan</option>
                             <?php foreach ($companies as $comp): ?>
                                 <option value="<?php echo $comp['id']; ?>" data-name="<?php echo $comp['name']; ?>">
                                     <?php echo $comp['name']; ?>
