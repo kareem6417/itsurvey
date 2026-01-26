@@ -267,22 +267,18 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     </div>
 
                     <div>
-                            <label class="text-xs font-semibold text-slate-500 uppercase">Email</label>
-                            <input type="email" x-model="formData.email" 
-                                   :readonly="locked.email" 
-                                   class="w-full p-2 border rounded-lg text-sm focus:ring-1 focus:ring-blue-500 outline-none"
-                                   :class="locked.email ? 'bg-slate-200 text-slate-500 cursor-not-allowed border-slate-300' : 'bg-white text-slate-800 border-blue-200 placeholder-slate-400'"
-                                   placeholder="Isi email kantor">
-                            </div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Email Kantor</label>
+                        <input type="email" name="email" x-model="formData.email" :readonly="mode === 'api'" required
+                            class="w-full p-3 border border-slate-200 rounded-lg text-slate-800 text-sm focus:border-blue-500 outline-none transition-colors"
+                            :class="mode === 'api' ? 'bg-slate-50' : 'bg-white'">
+                    </div>
 
                     <div>
-                            <label class="text-xs font-semibold text-slate-500 uppercase">Divisi</label>
-                            <input type="text" x-model="formData.division" 
-                                   :readonly="locked.division" 
-                                   class="w-full p-2 border rounded-lg text-sm focus:ring-1 focus:ring-blue-500 outline-none"
-                                   :class="locked.division ? 'bg-slate-200 text-slate-500 cursor-not-allowed border-slate-300' : 'bg-white text-slate-800 border-blue-200 placeholder-slate-400'"
-                                   placeholder="Isi divisi Anda">
-                        </div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Divisi</label>
+                        <input type="text" name="division" x-model="formData.division" :readonly="mode === 'api'" required
+                            class="w-full p-3 border border-slate-200 rounded-lg text-slate-800 text-sm focus:border-blue-500 outline-none transition-colors"
+                            :class="mode === 'api' ? 'bg-slate-50' : 'bg-white'">
+                    </div>
 
                     <button type="submit" :disabled="!isFormValid()"
                         class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-emerald-500/30 transition-all transform active:scale-[0.98] mt-6 flex justify-center items-center gap-2">
@@ -309,10 +305,10 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <script>
     function surveyApp() {
         return {
-            // STATE
             showWelcomeModal: true, 
+
             step: 1, 
-            mode: 'api',
+            mode: 'api', 
             selectedCompanyId: '',
             selectedCompanyName: '',
             nikInput: '',
@@ -321,19 +317,12 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
             isLoading: false,
             errorMessage: '',
             verifyError: false,
+            formData: { nik: '', name: '', email: '', division: '' },
             
-            // Data Form
-            formData: { nik: '', name: '', email: '', division: '', department: '', position: '' },
-            
-            // [BARU] Status Kunci per Field (True = Readonly, False = Bisa Edit)
-            locked: { name: false, email: false, division: false },
-            
-            answers: {}, 
-
-            // Modal & Helper
+            // Modal States (Alert)
             showModal: false,
             modalType: 'error', 
-            modalTitle: '', 
+            modalTitle: '',
             modalMessage: '',
 
             triggerAlert(type, title, message) {
@@ -343,17 +332,9 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 this.showModal = true;
             },
 
-            // --- NAVIGATION ---
             goBack() {
-                if (this.step > 1) {
-                    if (this.step === 4 && this.mode === 'manual') {
-                        this.step = 2; // Jika mode manual, balik ke input NIK
-                    } else if (this.step === 4 && this.mode === 'auto') {
-                         this.step = 3; // Jika mode auto, balik ke verifikasi
-                    } else {
-                        this.step--;
-                    }
-                }
+                this.resetForm();
+                this.step = 1;
             },
 
             resetForm() {
@@ -362,8 +343,7 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 this.apiDobCheck = '';
                 this.errorMessage = '';
                 this.verifyError = false;
-                this.formData = { nik: '', name: '', email: '', division: '', department: '', position: '' };
-                this.locked = { name: false, email: false, division: false };
+                this.formData = { nik: '', name: '', email: '', division: '' };
             },
 
             getTitle() {
@@ -371,7 +351,6 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 if(this.step === 2) return "Pencarian NIK";
                 if(this.step === 3) return "Verifikasi Keamanan";
                 if(this.step === 4) return "Konfirmasi Data";
-                if(this.step === 5) return "Terima Kasih";
             },
 
             getSubtitle() {
@@ -379,7 +358,6 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 if(this.step === 2) return "Masukkan NIK karyawan untuk validasi data.";
                 if(this.step === 3) return "Mohon konfirmasi tanggal lahir Anda.";
                 if(this.step === 4) return "Pastikan data diri Anda sudah benar.";
-                if(this.step === 5) return "Survey Anda telah berhasil dikirim.";
             },
             
             checkCompanyType() {
@@ -399,92 +377,69 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
             },
 
             nextStep() {
-                if (!this.selectedCompanyId) {
-                    this.triggerAlert('warning', 'Pilih Perusahaan', 'Mohon pilih perusahaan terlebih dahulu.');
-                    return;
-                }
                 if (this.mode === 'manual') {
                     this.formData.nik = '-'; 
-                    this.locked = { name: false, email: false, division: false }; // Buka semua kunci
                     this.step = 4;
                 } else {
                     this.step = 2;
                 }
             },
 
-            // --- LOGIKA UTAMA: SEARCH NIK ---
             async searchNik() {
-                if (!this.nikInput || this.nikInput.length < 3) {
-                    this.triggerAlert('warning', 'NIK Pendek', 'Masukkan NIK minimal 3 digit.');
-                    return;
-                }
-                
+                if (!this.nikInput) return;
                 this.isLoading = true;
                 this.errorMessage = '';
 
                 try {
                     const res = await fetch(`handler.php?action=search_nik&nik=${this.nikInput}`);
-                    if (!res.ok) throw new Error('Gagal request ke API');
                     const json = await res.json();
                     
                     if (json.status === 'success') {
                         const d = json.data;
                         
-                        // Isi Data Form
+                        // VALIDASI CROSS-CHECK COMPANY
+                        let userComp = this.selectedCompanyName.toLowerCase().replace(/pt\.?\s*/g, '').trim();
+                        let apiComp = (d.company_name || '').toLowerCase().replace(/pt\.?\s*/g, '').trim();
+                        const isMatch = apiComp.includes(userComp) || userComp.includes(apiComp);
+
+                        if (!isMatch) {
+                            this.triggerAlert(
+                                'error', 
+                                'Data Tidak Sesuai', 
+                                `NIK ${this.nikInput} terdaftar di "${d.company_name}", sedangkan Anda memilih "${this.selectedCompanyName}". Mohon periksa kembali pilihan Anda.`
+                            );
+                            
+                            this.isLoading = false;
+                            this.nikInput = ''; 
+                            return; 
+                        }
+
                         this.formData = {
                             nik: this.nikInput,
-                            name: d.name || '',
-                            email: d.email || '',
-                            division: d.division || '',
-                            department: d.department || '',
-                            position: d.position || ''
+                            name: d.name,
+                            email: d.email,
+                            division: d.division
                         };
-
-                        // [PERBAIKAN UTAMA] LOGIKA KUNCI FIELD
-                        // Jika data dari API ada isinya -> KUNCI (True)
-                        // Jika data dari API kosong -> BUKA (False) agar bisa diisi manual
-                        this.locked.name = (d.name && d.name !== "") ? true : false;
-                        this.locked.email = (d.email && d.email !== "") ? true : false;
-                        this.locked.division = (d.division && d.division !== "") ? true : false;
-
-                        this.mode = 'auto';
-
-                        // Cek DOB untuk Verifikasi
-                        let rawDob = d.dob_check || '';
-                        if (rawDob.length === 8 && !rawDob.includes('-')) {
-                            this.apiDobCheck = rawDob.substring(0, 4) + '-' + rawDob.substring(4, 6) + '-' + rawDob.substring(6, 8);
-                        } else {
-                            this.apiDobCheck = rawDob;
-                        }
+                        this.apiDobCheck = d.dob_check;
                         
                         if (this.apiDobCheck) {
-                            // Cek jika ada data kosong, beri notifikasi halus
-                            if(!this.locked.email || !this.locked.division) {
-                                this.triggerAlert('info', 'Data Ditemukan Sebagian', 'Beberapa data kosong (seperti Email). Silakan lengkapi secara manual di halaman selanjutnya.');
-                            } else {
-                                this.triggerAlert('success', 'Data Ditemukan', `Halo, ${this.formData.name}. Silakan verifikasi tanggal lahir.`);
-                            }
                             this.step = 3; 
                         } else {
-                            // Jika DOB tidak ada, langsung ke manual (buka semua kunci)
-                            this.triggerAlert('warning', 'Data Belum Lengkap', 'Data keamanan belum lengkap. Silakan isi data diri secara manual.');
+                            this.triggerAlert(
+                                'warning', 
+                                'Data Belum Lengkap', 
+                                'Data keamanan karyawan ini belum lengkap di sistem SAP. Silakan lanjutkan pengisian data secara manual.'
+                            );
+                            
                             this.mode = 'manual';
-                            this.locked = { name: false, email: false, division: false };
                             this.formData.nik = this.nikInput; 
                             this.step = 4;
                         }
-
                     } else {
-                        this.triggerAlert('info', 'Tidak Ditemukan', 'NIK tidak ditemukan. Silakan isi manual.');
-                        this.mode = 'manual';
-                        this.locked = { name: false, email: false, division: false }; // Buka kunci
-                        this.formData = { nik: this.nikInput, name: '', email: '', division: '', department: '', position: '' };
-                        this.step = 4;
+                        this.triggerAlert('error', 'Tidak Ditemukan', 'NIK yang Anda masukkan tidak terdaftar dalam database kami.');
                     }
-
                 } catch (e) {
-                    console.error(e);
-                    this.triggerAlert('error', 'Gagal Koneksi', 'Gagal menghubungi server.');
+                    this.errorMessage = "Gagal koneksi server.";
                 } finally {
                     this.isLoading = false;
                 }
@@ -493,51 +448,17 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
             verifyDob() {
                 let inputVal = String(this.userDobInput).trim();
                 let apiVal = String(this.apiDobCheck).trim();
+
                 if (inputVal === apiVal) {
                     this.step = 4; 
                     this.verifyError = false;
-                    this.triggerAlert('success', 'Verifikasi Berhasil', 'Identitas Anda terkonfirmasi.');
                 } else {
                     this.verifyError = true;
-                    this.triggerAlert('error', 'Gagal Verifikasi', 'Tanggal lahir tidak sesuai.');
                 }
             },
 
             isFormValid() {
                 return this.formData.name && this.formData.email && this.selectedCompanyId;
-            },
-
-            async submitSurvey() {
-                this.isLoading = true;
-                // Kirim semua data yang ada di formData (termasuk yang baru diketik manual)
-                const payload = {
-                    ...this.formData,
-                    company_id: this.selectedCompanyId,
-                    company_name: this.selectedCompanyName,
-                    answers: this.answers
-                };
-
-                try {
-                    const response = await fetch('handler.php?action=submit_survey', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    
-                    const result = await response.json();
-
-                    if (result.status === 'success') {
-                        this.step = 5; 
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                    } else {
-                        this.triggerAlert('error', 'Gagal Simpan', result.message || 'Terjadi kesalahan.');
-                    }
-                } catch (e) {
-                    console.error(e);
-                    this.triggerAlert('error', 'Error', 'Gagal mengirim data.');
-                } finally {
-                    this.isLoading = false;
-                }
             }
         }
     }
