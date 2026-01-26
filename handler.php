@@ -3,19 +3,19 @@
 require 'config.php';
 header('Content-Type: application/json');
 
-// Matikan error reporting agar JSON tidak rusak oleh warning PHP
+// Matikan error display agar JSON response tidak rusak
 error_reporting(0);
 ini_set('display_errors', 0);
 
 $action = $_GET['action'] ?? '';
 
 // =============================================================
-// 1. BAGIAN SEARCH NIK (INI SUDAH BENAR & SESUAI CODE ANDA)
+// 1. PENCARIAN NIK (API)
 // =============================================================
 if ($action == 'search_nik') {
     $nik = $_GET['nik'] ?? '';
-
-    // API CONFIG
+    
+    // Konfigurasi API Mandiri Coal
     $apiUrl = "http://mandiricoal.co.id:1880/master/employee/pernr/" . $nik;
     $apiKey = "ca6cda3462809fc894801c6f84e0cd8ecff93afb";
 
@@ -32,113 +32,106 @@ if ($action == 'search_nik') {
     curl_close($curl);
 
     if ($err) {
-        echo json_encode(['status' => 'error', 'message' => 'Koneksi API Gagal.']);
-        exit;
-    }
-
-    $data = json_decode($response, true);
-
-    if (isset($data['employee']) && count($data['employee']) > 0) {
-        $userData = $data['employee'][0];
-        
-        $companyNameFromApi = isset($userData['BUTXT']) ? trim($userData['BUTXT']) : (isset($userData['ABKTX']) ? trim($userData['ABKTX']) : 'Unknown Company');
-        
-        // Parsing Tanggal Lahir (GBPAS)
-        $dobRaw = isset($userData['GBPAS']) ? trim($userData['GBPAS']) : ''; 
-        $dobFormatted = '';
-        $cleanDate = preg_replace('/[^0-9]/', '', $dobRaw);
-
-        if (strlen($cleanDate) === 8) {
-            $y = substr($cleanDate, 0, 4);
-            $m = substr($cleanDate, 4, 2);
-            $d = substr($cleanDate, 6, 2);
-            $dobFormatted = "$y-$m-$d"; 
-        } 
-
-        // Cek Database Perusahaan
-        $stmt = $pdo->prepare("SELECT id FROM companies WHERE name = ? LIMIT 1");
-        $stmt->execute([$companyNameFromApi]);
-        $companyDB = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($companyDB) {
-            $companyId = $companyDB['id'];
-        } else {
-            $stmtInsert = $pdo->prepare("INSERT INTO companies (name, code) VALUES (?, ?)");
-            $codeDummy = strtoupper(substr(str_replace(' ', '', $companyNameFromApi), 0, 5)); 
-            $stmtInsert->execute([$companyNameFromApi, $codeDummy]);
-            $companyId = $pdo->lastInsertId();
-        }
-
-        $result = [
-            'name' => $userData['CNAME'] ?? '',
-            'email' => $userData['UMAIL'] ?? '',
-            'division' => $userData['ORGTX'] ?? '',
-            'company_name' => $companyNameFromApi,
-            'company_id' => $companyId,
-            'dob_check' => $dobFormatted
-        ];
-
-        echo json_encode(['status' => 'success', 'data' => $result]);
+        echo json_encode(['status' => 'error', 'message' => 'Gagal terhubung ke server API.']);
     } else {
-        echo json_encode(['status' => 'error', 'message' => 'NIK tidak ditemukan.']);
+        $data = json_decode($response, true);
+        if ($data && isset($data['data']) && !empty($data['data'])) {
+            $emp = $data['data'];
+            
+            // Format Tanggal Lahir untuk Verifikasi
+            $dob = $emp['date_of_birth'] ?? $emp['birthDate'] ?? '';
+            
+            echo json_encode([
+                'status' => 'success',
+                'data' => [
+                    'name' => $emp['employee_name'] ?? $emp['cname'] ?? '',
+                    'email' => $emp['email'] ?? $emp['umail'] ?? '',
+                    'division' => $emp['division'] ?? $emp['orgtx'] ?? '',
+                    'department' => $emp['department'] ?? '',
+                    'position' => $emp['position'] ?? $emp['plstx'] ?? '',
+                    'company_name' => $emp['company_name'] ?? '',
+                    'dob_check' => $dob
+                ]
+            ]);
+        } else {
+            echo json_encode(['status' => 'error', 'message' => 'NIK Tidak Ditemukan']);
+        }
     }
-    exit;
 }
 
 // =============================================================
-// 2. BAGIAN SUBMIT (SAYA PERBAIKI DI SINI UTK CHECKBOX)
+// 2. SUBMIT SURVEY (DATABASE SAVING)
 // =============================================================
-if ($action == 'submit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $input = json_decode(file_get_contents('php://input'), true);
-    
+elseif ($action == 'submit_survey') {
     try {
-        $pdo->beginTransaction();
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        if (!$input) {
+            throw new Exception("Data tidak valid atau kosong.");
+        }
+
+        // --- MAPPING VARIABEL (Agar Masuk Database dengan Benar) ---
+        // Kita ambil data, jika kosong isi dengan default '-' atau null
         
-        // Simpan Data Responden
-        $stmt = $pdo->prepare("INSERT INTO respondents (nik, full_name, email, division, company_id) VALUES (?, ?, ?, ?, ?)");
+        $nik = $input['nik'] ?? '-';
+        
+        // Perbaikan: Ambil 'name' untuk kolom 'full_name' di DB
+        $name = $input['name'] ?? 'User'; 
+        
+        $email = $input['email'] ?? '-';
+        $division = $input['division'] ?? '-';
+        $companyId = $input['company_id'] ?? null;
+        $companyName = $input['company_name'] ?? '-';
+
+        // --- MULAI TRANSAKSI DATABASE ---
+        $pdo->beginTransaction();
+
+        // A. Insert ke tabel RESPONDENTS
+        // Kolom di DB: submission_date, nik, full_name, email, division, company_id
+        $stmt = $pdo->prepare("INSERT INTO respondents (submission_date, nik, full_name, email, division, company_id) VALUES (NOW(), ?, ?, ?, ?, ?)");
         $stmt->execute([
-            $input['nik'], 
-            $input['name'], 
-            $input['email'], 
-            $input['division'], 
-            $input['company_id'] ?: null
+            $nik, 
+            $name,     // Masuk ke full_name
+            $email, 
+            $division, 
+            $companyId
         ]);
         $respondent_id = $pdo->lastInsertId();
 
-        // Simpan Jawaban
+        // B. Insert ke tabel ANSWERS
         $stmtAnswer = $pdo->prepare("INSERT INTO answers (respondent_id, question_id, answer_value, respondent_nik, respondent_name, respondent_email, respondent_company, respondent_division) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $companyName = $input['company_name'] ?? '-';
 
-        foreach ($input['answers'] as $q_id => $val) {
-            
-            // --- [FIX] Logika Penanganan Checkbox ---
-            // Jika jawaban berupa Array (misal user pilih FICO dan MM), gabungkan jadi string.
-            if (is_array($val)) {
-                $final_val = implode(', ', $val); // Hasil: "FICO, MM"
-            } else {
-                $final_val = $val; // Hasil: "Ya" atau "Sangat Baik"
+        $answers = $input['answers'] ?? [];
+
+        if (is_array($answers)) {
+            foreach ($answers as $q_id => $val) {
+                // Handle Checkbox (Array ke String)
+                if (is_array($val)) {
+                    $final_val = implode(', ', $val);
+                } else {
+                    $final_val = $val;
+                }
+
+                $stmtAnswer->execute([
+                    $respondent_id, 
+                    $q_id, 
+                    $final_val, 
+                    $nik, 
+                    $name,
+                    $email, 
+                    $companyName, 
+                    $division
+                ]);
             }
-            // ----------------------------------------
-
-            $stmtAnswer->execute([
-                $respondent_id, 
-                $q_id, 
-                $final_val, // Gunakan variabel yang sudah diperbaiki
-                $input['nik'], 
-                $input['name'], 
-                $input['email'], 
-                $companyName, 
-                $input['division']
-            ]);
         }
         
         $pdo->commit();
         echo json_encode(['status' => 'success']);
 
     } catch (Exception $e) {
-        $pdo->rollBack();
-        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log($e->getMessage()); // Log error di server
+        echo json_encode(['status' => 'error', 'message' => 'Gagal menyimpan: ' . $e->getMessage()]);
     }
-    exit;
 }
 ?>
