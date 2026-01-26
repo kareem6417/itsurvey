@@ -250,8 +250,8 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">NIK</label>
-                            <input type="text" x-model="formData.nik" readonly class="w-full p-3 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 font-mono text-sm">
+                            <label class="text-xs font-semibold text-slate-500 uppercase">NIK</label>
+                            <input type="text" x-model="formData.nik" readonly class="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-sm text-slate-500 cursor-not-allowed">
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Perusahaan</label>
@@ -260,33 +260,33 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     </div>
 
                     <div>
-                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Nama Lengkap</label>
+                        <label class="text-xs font-semibold text-slate-500 uppercase">Nama Lengkap</label>
                         <input type="text" 
-                            x-model="formData.name" 
-                            :readonly="mode === 'auto'" 
-                            required
-                            class="w-full p-3 border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none transition-colors"
-                            :class="mode === 'auto' ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-800'">
+                                x-model="formData.name" 
+                                :readonly="mode === 'auto' && formData.name" 
+                                required
+                                class="w-full p-3 border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none transition-colors"
+                                :class="(mode === 'auto' && formData.name) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-800'">
                     </div>
 
                     <div>
-                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Email</label>
+                        <label class="text-xs font-semibold text-slate-500 uppercase">Email</label>
                         <input type="email" 
-                            x-model="formData.email" 
-                            :readonly="mode === 'auto'" 
-                            required
-                            class="w-full p-3 border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none transition-colors"
-                            :class="mode === 'auto' ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-800'">
+                                x-model="formData.email" 
+                                :readonly="mode === 'auto' && formData.email" 
+                                required
+                                class="w-full p-3 border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none transition-colors"
+                                :class="(mode === 'auto' && formData.email) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-800'">
                     </div>
 
                     <div>
-                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Divisi</label>
+                        <label class="text-xs font-semibold text-slate-500 uppercase">Divisi</label>
                         <input type="text" 
-                            x-model="formData.division" 
-                            :readonly="mode === 'auto'" 
-                            required
-                            class="w-full p-3 border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none transition-colors"
-                            :class="mode === 'auto' ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-800'">
+                                x-model="formData.division" 
+                                :readonly="mode === 'auto' && formData.division" 
+                                required
+                                class="w-full p-3 border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none transition-colors"
+                                :class="(mode === 'auto' && formData.division) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-800'">
                     </div>
 
                     <button type="submit" :disabled="!isFormValid()"
