@@ -88,60 +88,67 @@ if ($action == 'search_nik') {
 // =============================================================
 // 2. BAGIAN SUBMIT (SAYA PERBAIKI DI SINI UTK CHECKBOX)
 // =============================================================
-if ($action == 'submit_survey') {
+if ($action == 'submit_survey' || $action == 'submit') {
     try {
-        // Ambil Data JSON
         $input = json_decode(file_get_contents('php://input'), true);
 
-        // Validasi Dasar
         if (!$input) {
-            throw new Exception("Data JSON tidak valid atau kosong.");
+            throw new Exception("Data tidak valid.");
         }
 
-        // Definisi Variabel dengan Fallback yang Kuat
-        // Ini memastikan jika JS mengirim 'name' atau 'respondent_name', tetap terbaca
-        $nik = $input['nik'] ?? '-';
-        $name = $input['respondent_name'] ?? $input['name'] ?? $input['full_name'] ?? 'User';
-        $email = $input['respondent_email'] ?? $input['email'] ?? '-';
-        $division = $input['division'] ?? '-';
-        $companyId = $input['company_id'] ?: null;
-        $companyName = $input['company_name'] ?? '-';
+        $source = $input; // Default: ambil dari root
+        if (isset($input['userData'])) {
+            $source = $input['userData'];
+        } elseif (isset($input['user'])) {
+            $source = $input['user'];
+        }
 
+        // 2. Cari NAMA dengan segala kemungkinan kunci
+        $name = $source['respondent_name'] 
+             ?? $source['name'] 
+             ?? $source['full_name'] 
+             ?? $source['employee_name'] 
+             ?? 'User';
+
+        // 3. Cari EMAIL dengan segala kemungkinan kunci
+        $email = $source['respondent_email'] 
+              ?? $source['email'] 
+              ?? '-';
+
+        // 4. Ambil data lain
+        $nik = $source['nik'] ?? '-';
+        $division = $source['division'] ?? '-';
+        $companyId = $source['company_id'] ?? null;
+        $companyName = $source['company_name'] ?? '-';
+
+        // --- MULAI SIMPAN ---
         $pdo->beginTransaction();
 
-        // 1. SIMPAN KE TABEL RESPONDENTS
+        // A. Insert Respondents
         $stmt = $pdo->prepare("INSERT INTO respondents (submission_date, nik, full_name, email, division, company_id) VALUES (NOW(), ?, ?, ?, ?, ?)");
-        $stmt->execute([
-            $nik, 
-            $name, 
-            $email, 
-            $division, 
-            $companyId
-        ]);
+        $stmt->execute([$nik, $name, $email, $division, $companyId]);
         $respondent_id = $pdo->lastInsertId();
 
-        // 2. SIMPAN KE TABEL ANSWERS
+        // B. Insert Answers
         $stmtAnswer = $pdo->prepare("INSERT INTO answers (respondent_id, question_id, answer_value, respondent_nik, respondent_name, respondent_email, respondent_company, respondent_division) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
 
-        if (isset($input['answers']) && is_array($input['answers'])) {
-            foreach ($input['answers'] as $q_id => $val) {
-                
-                // Logika Checkbox (Array to String)
-                if (is_array($val)) {
-                    $final_val = implode(', ', $val); 
-                } else {
-                    $final_val = $val; 
-                }
+        // Jawaban biasanya ada di $input['answers'], tapi kita cek juga di $source jaga-jaga
+        $answers = $input['answers'] ?? $source['answers'] ?? [];
+
+        if (is_array($answers)) {
+            foreach ($answers as $q_id => $val) {
+                // Handle Array (Checkbox)
+                if (is_array($val)) $val = implode(', ', $val);
 
                 $stmtAnswer->execute([
                     $respondent_id, 
                     $q_id, 
-                    $final_val, 
-                    $nik,         // [FIX] Gunakan variabel $nik yang konsisten
-                    $name,        // [FIX] Gunakan variabel $name (bukan $input['name'] mentah)
-                    $email,       // [FIX] Gunakan variabel $email (bukan $input['email'] mentah)
+                    $val, 
+                    $nik, 
+                    $name,  // <-- Pasti terisi karena logika normalisasi di atas
+                    $email, // <-- Pasti terisi
                     $companyName, 
-                    $division     // [FIX] Gunakan variabel $division
+                    $division
                 ]);
             }
         }
@@ -150,14 +157,9 @@ if ($action == 'submit_survey') {
         echo json_encode(['status' => 'success']);
 
     } catch (Exception $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        // Log error asli ke file server log untuk debugging admin
-        error_log($e->getMessage());
-        
-        // Kirim pesan user-friendly
-        echo json_encode(['status' => 'error', 'message' => 'Gagal menyimpan data: ' . $e->getMessage()]);
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log($e->getMessage()); // Log error di server
+        echo json_encode(['status' => 'error', 'message' => 'Gagal menyimpan: ' . $e->getMessage()]);
     }
 }
 ?>
