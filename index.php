@@ -273,10 +273,10 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <label class="text-xs font-semibold text-slate-500 uppercase">Email</label>
                         <input type="email" 
                                 x-model="formData.email" 
-                                :readonly="mode === 'auto' && formData.email" 
+                                :readonly="mode === 'auto' && lockedFields.email" 
                                 required
                                 class="w-full p-3 border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none transition-colors"
-                                :class="(mode === 'auto' && formData.email) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-800'">
+                                :class="(mode === 'auto' && lockedFields.email) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-800'">
                     </div>
 
                     <div>
@@ -312,195 +312,251 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </a>
     </div>
     <script>
-    function surveyApp() {
-        return {
-            showWelcomeModal: true, 
-
-            step: 1, 
-            mode: 'api', 
-            selectedCompanyId: '',
-            selectedCompanyName: '',
-            nikInput: '',
-            userDobInput: '',
-            apiDobCheck: '',
-            isLoading: false,
-            errorMessage: '',
-            verifyError: false,
-            formData: { nik: '', name: '', email: '', division: '' },
-            
-            // Modal States (Alert)
-            showModal: false,
-            modalType: 'error', 
-            modalTitle: '',
-            modalMessage: '',
-
-            triggerAlert(type, title, message) {
-                this.modalType = type;
-                this.modalTitle = title;
-                this.modalMessage = message;
-                this.showModal = true;
-            },
-
-            goBack() {
-                this.resetForm();
-                this.step = 1;
-            },
-
-            resetForm() {
-                this.nikInput = '';
-                this.userDobInput = '';
-                this.apiDobCheck = '';
-                this.errorMessage = '';
-                this.verifyError = false;
-                this.formData = { nik: '', name: '', email: '', division: '' };
-            },
-
-            getTitle() {
-                if(this.step === 1) return "IT Satisfaction Survey";
-                if(this.step === 2) return "Pencarian NIK";
-                if(this.step === 3) return "Verifikasi Keamanan";
-                if(this.step === 4) return "Konfirmasi Data";
-            },
-
-            getSubtitle() {
-                if(this.step === 1) return "Silakan pilih unit bisnis Anda untuk memulai.";
-                if(this.step === 2) return "Masukkan NIK karyawan untuk validasi data.";
-                if(this.step === 3) return "Mohon konfirmasi tanggal lahir Anda.";
-                if(this.step === 4) return "Pastikan data diri Anda sudah benar.";
-            },
-            
-            checkCompanyType() {
-                const select = document.querySelector('select');
-                const option = select.options[select.selectedIndex];
-                if(option.value === "") {
-                    this.selectedCompanyId = "";
-                    this.selectedCompanyName = "";
-                    return;
-                }
-                this.selectedCompanyName = option.getAttribute('data-name');
-                if (this.selectedCompanyName && this.selectedCompanyName.toLowerCase().includes('mandiriland')) {
-                    this.mode = 'manual';
-                } else {
-                    this.mode = 'api';
-                }
-            },
-
-            nextStep() {
-                if (this.mode === 'manual') {
-                    this.formData.nik = '-'; 
-                    this.step = 4;
-                } else {
-                    this.step = 2;
-                }
-            },
-
-            async searchNik() {
-                if (!this.nikInput || this.nikInput.length < 3) {
-                    this.triggerAlert('warning', 'NIK Pendek', 'Masukkan NIK minimal 3 digit.');
-                    return;
-                }
+        function surveyApp() {
+            return {
+                // STATE VARIABLES
+                showWelcomeModal: true, 
+                step: 1, 
+                mode: 'api',
+                selectedCompanyId: '',
+                selectedCompanyName: '',
+                nikInput: '',
+                userDobInput: '',
+                apiDobCheck: '',
+                isLoading: false,
+                verifyError: false,
                 
-                this.isLoading = true;
-                this.errorMessage = '';
+                // Data Form
+                formData: { nik: '', name: '', email: '', division: '', department: '', position: '' },
+                
+                // [BARU] Status Pengunci Kolom (Agar tidak auto-lock saat diketik)
+                lockedFields: { name: false, email: false, division: false },
+                
+                answers: {}, 
 
-                try {
-                    const res = await fetch(`handler.php?action=search_nik&nik=${this.nikInput}`);
-                    
-                    if (!res.ok) throw new Error('Gagal request ke API');
+                // Modal Alert State
+                showModal: false,
+                modalType: 'error', 
+                modalTitle: '',
+                modalMessage: '',
 
-                    const json = await res.json();
+                // Helper Functions
+                triggerAlert(type, title, message) {
+                    this.modalType = type;
+                    this.modalTitle = title;
+                    this.modalMessage = message;
+                    this.showModal = true;
+                },
+
+                goBack() {
+                    this.resetForm();
+                    this.step = 1;
+                },
+
+                resetForm() {
+                    this.nikInput = '';
+                    this.userDobInput = '';
+                    this.apiDobCheck = '';
+                    this.errorMessage = '';
+                    this.verifyError = false;
+                    this.formData = { nik: '', name: '', email: '', division: '', department: '', position: '' };
+                    // Reset kunci
+                    this.lockedFields = { name: false, email: false, division: false };
+                },
+
+                getTitle() {
+                    if(this.step === 1) return "IT Satisfaction Survey";
+                    if(this.step === 2) return "Pencarian NIK";
+                    if(this.step === 3) return "Verifikasi Keamanan";
+                    if(this.step === 4) return "Konfirmasi Data";
+                },
+
+                getSubtitle() {
+                    if(this.step === 1) return "Silakan pilih unit bisnis Anda untuk memulai.";
+                    if(this.step === 2) return "Masukkan NIK karyawan untuk validasi data.";
+                    if(this.step === 3) return "Mohon konfirmasi tanggal lahir Anda.";
+                    if(this.step === 4) return "Pastikan data diri Anda sudah benar.";
+                },
+                
+                checkCompanyType() {
+                    const select = document.querySelector('select');
+                    const option = select.options[select.selectedIndex];
+                    if(option.value === "") {
+                        this.selectedCompanyId = "";
+                        this.selectedCompanyName = "";
+                        return;
+                    }
+                    this.selectedCompanyName = option.getAttribute('data-name');
+                    if (this.selectedCompanyName && this.selectedCompanyName.toLowerCase().includes('mandiriland')) {
+                        this.mode = 'manual';
+                    } else {
+                        this.mode = 'api';
+                    }
+                },
+
+                nextStep() {
+                    if (!this.selectedCompanyId) {
+                        this.triggerAlert('warning', 'Pilih Perusahaan', 'Mohon pilih perusahaan terlebih dahulu.');
+                        return;
+                    }
+                    if (this.mode === 'manual') {
+                        this.formData.nik = '-'; 
+                        this.step = 4;
+                    } else {
+                        this.step = 2;
+                    }
+                },
+
+                async searchNik() {
+                    if (!this.nikInput || this.nikInput.length < 3) {
+                        this.triggerAlert('warning', 'NIK Pendek', 'Masukkan NIK minimal 3 digit.');
+                        return;
+                    }
                     
-                    if (json.status === 'success') {
-                        const d = json.data;
+                    this.isLoading = true;
+                    this.errorMessage = '';
+
+                    try {
+                        const res = await fetch(`handler.php?action=search_nik&nik=${this.nikInput}`);
                         
-                        // 1. VALIDASI CROSS-CHECK COMPANY
-                        let userComp = this.selectedCompanyName.toLowerCase().replace(/pt\.?\s*/g, '').trim();
-                        let apiComp = (d.company_name || '').toLowerCase().replace(/pt\.?\s*/g, '').trim();
+                        if (!res.ok) throw new Error('Gagal request ke API');
+
+                        const json = await res.json();
                         
-                        if (apiComp && userComp) {
-                            const isMatch = apiComp.includes(userComp) || userComp.includes(apiComp);
-                            if (!isMatch) {
-                                this.triggerAlert('error', 'Data Tidak Sesuai', `NIK terdaftar di "${d.company_name}", bukan "${this.selectedCompanyName}".`);
-                                this.isLoading = false;
-                                this.nikInput = ''; 
-                                return; 
+                        if (json.status === 'success') {
+                            const d = json.data;
+                            
+                            // Cross Check Company
+                            let userComp = this.selectedCompanyName.toLowerCase().replace(/pt\.?\s*/g, '').trim();
+                            let apiComp = (d.company_name || '').toLowerCase().replace(/pt\.?\s*/g, '').trim();
+                            
+                            if (apiComp && userComp) {
+                                const isMatch = apiComp.includes(userComp) || userComp.includes(apiComp);
+                                if (!isMatch) {
+                                    this.triggerAlert('error', 'Data Tidak Sesuai', `NIK terdaftar di "${d.company_name}", bukan "${this.selectedCompanyName}".`);
+                                    this.isLoading = false;
+                                    this.nikInput = ''; 
+                                    return; 
+                                }
                             }
-                        }
 
-                        // 2. MAPPING DATA
-                        this.formData = {
-                            nik: this.nikInput,
-                            name: d.employee_name || d.name || '',
-                            email: d.email || '',
-                            division: d.division || '',
-                            department: d.department || '',
-                            position: d.position || ''
-                        };
-                        
-                        this.mode = 'auto';
+                            // Mapping Data
+                            this.formData = {
+                                nik: this.nikInput,
+                                name: d.employee_name || d.name || '',
+                                email: d.email || '',
+                                division: d.division || '',
+                                department: d.department || '',
+                                position: d.position || ''
+                            };
+                            
+                            // [LOGIKA BARU] Tentukan Kunci Berdasarkan Data API Awal
+                            // Jika data API ada isinya -> Kunci (True). Jika kosong -> Buka (False).
+                            this.lockedFields.name = !!this.formData.name;
+                            this.lockedFields.email = !!this.formData.email;
+                            this.lockedFields.division = !!this.formData.division;
 
-                        // 4. CEK DATA KOSONG (Optional: Beri info ke user)
-                        // Jika nama/email/divisi kosong, beri tahu user bahwa mereka bisa isikan manual
-                        const isDataIncomplete = !this.formData.name || !this.formData.email || !this.formData.division;
-                        
-                        // 5. CEK DOB UNTUK VERIFIKASI
-                        // Pastikan format YYYY-MM-DD
-                        let rawDob = d.date_of_birth || d.dob_check || '';
-                        if (rawDob.length === 8 && !rawDob.includes('-')) {
-                            this.apiDobCheck = rawDob.substring(0, 4) + '-' + rawDob.substring(4, 6) + '-' + rawDob.substring(6, 8);
-                        } else {
-                            this.apiDobCheck = rawDob;
-                        }
-                        
-                        if (this.apiDobCheck) {
-                            // Data ada DOB -> Verifikasi Dulu
-                            if (isDataIncomplete) {
-                                this.triggerAlert('info', 'Data Ditemukan', 'Beberapa data kosong (Email/Divisi). Silakan lengkapi manual setelah verifikasi.');
+                            this.mode = 'auto';
+
+                            // Cek Data Kosong
+                            const isDataIncomplete = !this.formData.name || !this.formData.email || !this.formData.division;
+                            
+                            // Cek DOB
+                            let rawDob = d.date_of_birth || d.dob_check || '';
+                            if (rawDob.length === 8 && !rawDob.includes('-')) {
+                                this.apiDobCheck = rawDob.substring(0, 4) + '-' + rawDob.substring(4, 6) + '-' + rawDob.substring(6, 8);
                             } else {
-                                this.triggerAlert('success', 'Data Ditemukan', `Halo, ${this.formData.name || 'Karyawan'}. Silakan verifikasi.`);
+                                this.apiDobCheck = rawDob;
                             }
-                            this.step = 3; 
+                            
+                            if (this.apiDobCheck) {
+                                if (isDataIncomplete) {
+                                    this.triggerAlert('info', 'Data Ditemukan', 'Beberapa data kosong. Silakan lengkapi manual setelah verifikasi.');
+                                } else {
+                                    this.triggerAlert('success', 'Data Ditemukan', `Halo, ${this.formData.name}. Silakan verifikasi.`);
+                                }
+                                this.step = 3; 
+                            } else {
+                                this.triggerAlert('warning', 'Data Belum Lengkap', 'Data keamanan belum lengkap. Silakan isi data diri secara manual.');
+                                
+                                // Jika masuk manual full, buka semua kunci
+                                this.mode = 'manual';
+                                this.lockedFields = { name: false, email: false, division: false };
+                                this.formData.nik = this.nikInput; 
+                                this.step = 4;
+                            }
 
                         } else {
-                            // Data gak ada DOB -> Manual Full
-                            this.triggerAlert('warning', 'Data Belum Lengkap', 'Data keamanan belum lengkap. Silakan isi data diri secara manual.');
+                            this.triggerAlert('info', 'Tidak Ditemukan', 'NIK tidak ditemukan. Silakan isi manual.');
                             this.mode = 'manual';
-                            this.formData.nik = this.nikInput; 
+                            this.lockedFields = { name: false, email: false, division: false };
+                            this.formData = { nik: this.nikInput, name: '', email: '', division: '', department: '', position: '' };
                             this.step = 4;
                         }
 
-                    } else {
-                        // Data Tidak Ditemukan -> Manual Full
-                        this.triggerAlert('info', 'Tidak Ditemukan', 'NIK tidak ditemukan. Silakan isi manual.');
-                        this.mode = 'manual';
-                        this.formData = { nik: this.nikInput, name: '', email: '', division: '', department: '', position: '' };
-                        this.step = 4;
+                    } catch (e) {
+                        console.error(e);
+                        this.triggerAlert('error', 'Gagal Koneksi', 'Gagal menghubungi server.');
+                    } finally {
+                        this.isLoading = false;
                     }
+                },
 
-                } catch (e) {
-                    console.error(e);
-                    this.triggerAlert('error', 'Gagal Koneksi', 'Gagal menghubungi server.');
-                } finally {
-                    this.isLoading = false;
+                verifyDob() {
+                    let inputVal = String(this.userDobInput).trim();
+                    let apiVal = String(this.apiDobCheck).trim();
+
+                    if (inputVal === apiVal) {
+                        this.step = 4; 
+                        this.verifyError = false;
+                        this.triggerAlert('success', 'Berhasil', 'Verifikasi sukses.');
+                    } else {
+                        this.verifyError = true;
+                        this.triggerAlert('error', 'Gagal', 'Tanggal lahir tidak sesuai.');
+                    }
+                },
+
+                isFormValid() {
+                    return this.formData.name && this.formData.email && this.selectedCompanyId;
+                },
+
+                async submitSurvey() {
+                    this.isLoading = true;
+                    const payload = {
+                        nik: this.formData.nik,
+                        name: this.formData.name,
+                        email: this.formData.email,
+                        division: this.formData.division,
+                        department: this.formData.department,
+                        position: this.formData.position,
+                        company_id: this.selectedCompanyId,
+                        company_name: this.selectedCompanyName,
+                        answers: this.answers
+                    };
+
+                    try {
+                        const response = await fetch('handler.php?action=submit_survey', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        const result = await response.json();
+
+                        if (result.status === 'success') {
+                            this.step = 5; 
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                        } else {
+                            this.triggerAlert('error', 'Gagal Simpan', result.message || 'Terjadi kesalahan.');
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        this.triggerAlert('error', 'Error', 'Gagal mengirim data.');
+                    } finally {
+                        this.isLoading = false;
+                    }
                 }
-            },
-            verifyDob() {
-                let inputVal = String(this.userDobInput).trim();
-                let apiVal = String(this.apiDobCheck).trim();
-
-                if (inputVal === apiVal) {
-                    this.step = 4; 
-                    this.verifyError = false;
-                } else {
-                    this.verifyError = true;
-                }
-            },
-
-            isFormValid() {
-                return this.formData.name && this.formData.email && this.selectedCompanyId;
             }
         }
-    }
-    </script>
+        </script>
 </body>
 </html>
