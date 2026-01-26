@@ -88,78 +88,57 @@ if ($action == 'search_nik') {
 // =============================================================
 // 2. BAGIAN SUBMIT (SAYA PERBAIKI DI SINI UTK CHECKBOX)
 // =============================================================
-if ($action == 'submit_survey' || $action == 'submit') {
+if ($action == 'submit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    
     try {
-        $input = json_decode(file_get_contents('php://input'), true);
-
-        if (!$input) {
-            throw new Exception("Data tidak valid.");
-        }
-
-        $source = $input; // Default: ambil dari root
-        if (isset($input['userData'])) {
-            $source = $input['userData'];
-        } elseif (isset($input['user'])) {
-            $source = $input['user'];
-        }
-
-        // 2. Cari NAMA dengan segala kemungkinan kunci
-        $name = $source['respondent_name'] 
-             ?? $source['name'] 
-             ?? $source['full_name'] 
-             ?? $source['employee_name'] 
-             ?? 'User';
-
-        // 3. Cari EMAIL dengan segala kemungkinan kunci
-        $email = $source['respondent_email'] 
-              ?? $source['email'] 
-              ?? '-';
-
-        // 4. Ambil data lain
-        $nik = $source['nik'] ?? '-';
-        $division = $source['division'] ?? '-';
-        $companyId = $source['company_id'] ?? null;
-        $companyName = $source['company_name'] ?? '-';
-
-        // --- MULAI SIMPAN ---
         $pdo->beginTransaction();
-
-        // A. Insert Respondents
-        $stmt = $pdo->prepare("INSERT INTO respondents (submission_date, nik, full_name, email, division, company_id) VALUES (NOW(), ?, ?, ?, ?, ?)");
-        $stmt->execute([$nik, $name, $email, $division, $companyId]);
+        
+        // Simpan Data Responden
+        $stmt = $pdo->prepare("INSERT INTO respondents (nik, full_name, email, division, company_id) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([
+            $input['nik'], 
+            $input['name'], 
+            $input['email'], 
+            $input['division'], 
+            $input['company_id'] ?: null
+        ]);
         $respondent_id = $pdo->lastInsertId();
 
-        // B. Insert Answers
+        // Simpan Jawaban
         $stmtAnswer = $pdo->prepare("INSERT INTO answers (respondent_id, question_id, answer_value, respondent_nik, respondent_name, respondent_email, respondent_company, respondent_division) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $companyName = $input['company_name'] ?? '-';
 
-        // Jawaban biasanya ada di $input['answers'], tapi kita cek juga di $source jaga-jaga
-        $answers = $input['answers'] ?? $source['answers'] ?? [];
-
-        if (is_array($answers)) {
-            foreach ($answers as $q_id => $val) {
-                // Handle Array (Checkbox)
-                if (is_array($val)) $val = implode(', ', $val);
-
-                $stmtAnswer->execute([
-                    $respondent_id, 
-                    $q_id, 
-                    $val, 
-                    $nik, 
-                    $name,  // <-- Pasti terisi karena logika normalisasi di atas
-                    $email, // <-- Pasti terisi
-                    $companyName, 
-                    $division
-                ]);
+        foreach ($input['answers'] as $q_id => $val) {
+            
+            // --- [FIX] Logika Penanganan Checkbox ---
+            // Jika jawaban berupa Array (misal user pilih FICO dan MM), gabungkan jadi string.
+            if (is_array($val)) {
+                $final_val = implode(', ', $val); // Hasil: "FICO, MM"
+            } else {
+                $final_val = $val; // Hasil: "Ya" atau "Sangat Baik"
             }
+            // ----------------------------------------
+
+            $stmtAnswer->execute([
+                $respondent_id, 
+                $q_id, 
+                $final_val, // Gunakan variabel yang sudah diperbaiki
+                $input['nik'], 
+                $input['name'], 
+                $input['email'], 
+                $companyName, 
+                $input['division']
+            ]);
         }
         
         $pdo->commit();
         echo json_encode(['status' => 'success']);
 
     } catch (Exception $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        error_log($e->getMessage()); // Log error di server
-        echo json_encode(['status' => 'error', 'message' => 'Gagal menyimpan: ' . $e->getMessage()]);
+        $pdo->rollBack();
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
     }
+    exit;
 }
 ?>
