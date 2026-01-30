@@ -267,7 +267,7 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     </div>
 
                     <div>
-                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Email Kantor</label>
+                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Email</label>
                         <input type="email" name="email" x-model="formData.email" :readonly="mode === 'api'" required
                             class="w-full p-3 border border-slate-200 rounded-lg text-slate-800 text-sm focus:border-blue-500 outline-none transition-colors"
                             :class="mode === 'api' ? 'bg-slate-50' : 'bg-white'">
