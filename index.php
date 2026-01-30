@@ -261,23 +261,26 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                     <div>
                         <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Nama Lengkap</label>
-                        <input type="text" name="name" x-model="formData.name" :readonly="mode === 'api'" required
+                        <input type="text" name="name" x-model="formData.name" 
+                            :readonly="mode === 'api' && formData.name !== ''" required
                             class="w-full p-3 border border-slate-200 rounded-lg text-slate-800 text-sm focus:border-blue-500 outline-none transition-colors"
-                            :class="mode === 'api' ? 'bg-slate-50' : 'bg-white'">
+                            :class="(mode === 'api' && formData.name !== '') ? 'bg-slate-50' : 'bg-white'">
                     </div>
 
                     <div>
                         <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Email</label>
-                        <input type="email" name="email" x-model="formData.email" :readonly="mode === 'api'" required
+                        <input type="email" name="email" x-model="formData.email" 
+                            :readonly="mode === 'api' && formData.email !== ''" required
                             class="w-full p-3 border border-slate-200 rounded-lg text-slate-800 text-sm focus:border-blue-500 outline-none transition-colors"
-                            :class="mode === 'api' ? 'bg-slate-50' : 'bg-white'">
+                            :class="(mode === 'api' && formData.email !== '') ? 'bg-slate-50' : 'bg-white'">
                     </div>
 
                     <div>
                         <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Divisi</label>
-                        <input type="text" name="division" x-model="formData.division" :readonly="mode === 'api'" required
+                        <input type="text" name="division" x-model="formData.division" 
+                            :readonly="mode === 'api' && formData.division !== ''" required
                             class="w-full p-3 border border-slate-200 rounded-lg text-slate-800 text-sm focus:border-blue-500 outline-none transition-colors"
-                            :class="mode === 'api' ? 'bg-slate-50' : 'bg-white'">
+                            :class="(mode === 'api' && formData.division !== '') ? 'bg-slate-50' : 'bg-white'">
                     </div>
 
                     <button type="submit" :disabled="!isFormValid()"
@@ -397,46 +400,36 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     if (json.status === 'success') {
                         const d = json.data;
                         
-                        // VALIDASI CROSS-CHECK COMPANY
                         let userComp = this.selectedCompanyName.toLowerCase().replace(/pt\.?\s*/g, '').trim();
                         let apiComp = (d.company_name || '').toLowerCase().replace(/pt\.?\s*/g, '').trim();
                         const isMatch = apiComp.includes(userComp) || userComp.includes(apiComp);
 
                         if (!isMatch) {
-                            this.triggerAlert(
-                                'error', 
-                                'Data Tidak Sesuai', 
-                                `NIK ${this.nikInput} terdaftar di "${d.company_name}", sedangkan Anda memilih "${this.selectedCompanyName}". Mohon periksa kembali pilihan Anda.`
-                            );
-                            
+                            this.triggerAlert('error', 'Data Tidak Sesuai', `NIK ${this.nikInput} terdaftar di "${d.company_name}"...`);
                             this.isLoading = false;
                             this.nikInput = ''; 
                             return; 
                         }
 
+                        // Simpan data ke formData. Jika dari API kosong, simpan sebagai string kosong agar bisa diinput manual
                         this.formData = {
                             nik: this.nikInput,
-                            name: d.name,
-                            email: d.email,
-                            division: d.division
+                            name: d.name || '',
+                            email: d.email || '',
+                            division: d.division || ''
                         };
                         this.apiDobCheck = d.dob_check;
                         
                         if (this.apiDobCheck) {
                             this.step = 3; 
                         } else {
-                            this.triggerAlert(
-                                'warning', 
-                                'Data Belum Lengkap', 
-                                'Data keamanan karyawan ini belum lengkap di sistem SAP. Silakan lanjutkan pengisian data secara manual.'
-                            );
-                            
-                            this.mode = 'manual';
-                            this.formData.nik = this.nikInput; 
+                            // Jika DOB tidak ada, langsung ke mode manual agar user bisa melengkapi
+                            this.triggerAlert('warning', 'Data Belum Lengkap', 'Data keamanan belum lengkap. Silakan lengkapi data yang kosong secara manual.');
+                            this.mode = 'api'; // Tetap api agar NIK tidak berubah jadi '-', tapi field kosong terbuka
                             this.step = 4;
                         }
                     } else {
-                        this.triggerAlert('error', 'Tidak Ditemukan', 'NIK yang Anda masukkan tidak terdaftar dalam database kami.');
+                        this.triggerAlert('error', 'Tidak Ditemukan', 'NIK tidak terdaftar.');
                     }
                 } catch (e) {
                     this.errorMessage = "Gagal koneksi server.";
@@ -458,8 +451,14 @@ $companies = $stmt->fetchAll(PDO::FETCH_ASSOC);
             },
 
             isFormValid() {
-                return this.formData.name && this.formData.email && this.selectedCompanyId;
-            }
+                // Memastikan semua field utama tidak kosong/hanya spasi
+                return (
+                    this.formData.name?.trim() && 
+                    this.formData.email?.trim() && 
+                    this.formData.division?.trim() &&
+                    this.selectedCompanyId
+                );
+            },
         }
     }
     </script>
