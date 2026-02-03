@@ -303,19 +303,57 @@ foreach ($questionsDB as $q) {
                                         </div>
                                     
                                     <?php elseif ($q['type'] == 'checkbox'): ?>
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" x-init="if (!($store.answersStore.answers[<?php echo $id; ?>] instanceof Array)) $store.answersStore.answers[<?php echo $id; ?>] = []">
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" 
+                                            x-init="if (!($store.answersStore.answers[<?php echo $id; ?>] instanceof Array)) $store.answersStore.answers[<?php echo $id; ?>] = []">
+                                            
                                             <?php foreach ($q['options'] as $opt): ?>
-                                                <label class="cursor-pointer group relative">
-                                                    <input type="checkbox" value="<?php echo htmlspecialchars($opt); ?>" x-model="$store.answersStore.answers[<?php echo $id; ?>]" class="sr-only">
-                                                    <div class="w-full py-3.5 px-5 rounded-xl flex items-center gap-3 transition-all duration-200 border"
-                                                         :class="isDark
-                                                            ? ($store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'border-indigo-500 bg-indigo-900/30 text-indigo-300' : 'border-slate-700 bg-slate-900 text-slate-400 hover:bg-slate-800')
-                                                            : ($store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')">
-                                                        <div class="w-5 h-5 rounded border flex items-center justify-center transition-all duration-200"
-                                                             :class="isDark ? ($store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'bg-indigo-500 border-indigo-500' : 'border-slate-600 bg-slate-800') : ($store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300 bg-white')">
-                                                            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-show="$store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>')"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                                                <?php 
+                                                    // FITUR TAMBAHAN: Mapping Deskripsi (Hanya Tampilan, Value tetap bersih)
+                                                    $desc = '';
+                                                    if (strpos($opt, 'FICO') !== false) $desc = 'Keuangan & Akuntansi';
+                                                    elseif (strpos($opt, 'HR') !== false) $desc = 'Data Karyawan & Payroll';
+                                                    elseif (strpos($opt, 'MM') !== false) $desc = 'Procurement & Logistik';
+                                                    elseif (strpos($opt, 'PM') !== false) $desc = 'Maintenance Aset';
+                                                    elseif (strpos($opt, 'Lainnya') !== false) $desc = 'Modul di luar pilihan di atas';
+                                                ?>
+
+                                                <label class="cursor-pointer group relative flex items-start h-full">
+                                                    <input type="checkbox" 
+                                                        value="<?php echo htmlspecialchars($opt); ?>" 
+                                                        x-model="$store.answersStore.answers[<?php echo $id; ?>]" 
+                                                        class="sr-only">
+                                                    
+                                                    <div class="w-full py-3.5 px-5 rounded-xl flex items-center gap-3 transition-all duration-200 border h-full"
+                                                        :class="isDark
+                                                            ? ($store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') 
+                                                                ? 'border-indigo-500 bg-indigo-900/30 text-indigo-300' 
+                                                                : 'border-slate-700 bg-slate-900 text-slate-400 hover:bg-slate-800')
+                                                            : ($store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') 
+                                                                ? 'border-indigo-500 bg-indigo-50 text-indigo-700' 
+                                                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')">
+                                                        
+                                                        <div class="w-5 h-5 rounded border flex-shrink-0 flex items-center justify-center transition-all duration-200"
+                                                            :class="isDark 
+                                                                ? ($store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'bg-indigo-500 border-indigo-500' : 'border-slate-600 bg-slate-800') 
+                                                                : ($store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300 bg-white')">
+                                                            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" 
+                                                                x-show="$store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>')"
+                                                                style="display: none;">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                                                            </svg>
                                                         </div>
-                                                        <span class="font-medium"><?php echo htmlspecialchars($opt); ?></span>
+                                                        
+                                                        <div class="flex flex-col">
+                                                            <span class="font-medium text-sm leading-snug select-none text-left">
+                                                                <?php echo htmlspecialchars($opt); ?>
+                                                            </span>
+                                                            <?php if($desc): ?>
+                                                                <span class="text-xs opacity-60 font-normal mt-0.5 text-left">
+                                                                    <?php echo $desc; ?>
+                                                                </span>
+                                                            <?php endif; ?>
+                                                        </div>
+
                                                     </div>
                                                 </label>
                                             <?php endforeach; ?>
