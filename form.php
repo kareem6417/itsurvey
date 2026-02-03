@@ -235,57 +235,31 @@ foreach ($questionsDB as $q) {
                         :class="isDark ? 'bg-slate-800 border-slate-700 hover:border-slate-600' : 'bg-white border-slate-100 hover:shadow-lg'"
                         style="animation-delay: <?php echo $delay; ?>s;"
                         
-                        /* LOGIKA BARU (SUPPORT CHECKBOX ARRAY) */
-                        x-data="{
-                            showQuestion: true, 
-                            parentId: <?php echo json_encode($q['dependency_id']); ?>,
-                            triggerVal: '<?php echo $q['dependency_value']; ?>',
-
-                            init() {
-                                // 1. Cek Dependensi Saat Halaman Dimuat
-                                if (this.parentId) {
-                                    // Ambil nilai jawaban induk saat ini
-                                    let currentVal = $store.answersStore.answers[this.parentId];
+                        /* LOGIC SEDERHANA & KUAT */
+                        x-show="
+                            <?php if (!$q['dependency_id']): ?>
+                                true
+                            <?php else: ?>
+                                // Menggunakan IIFE (Immediately Invoked Function Expression) agar bersih
+                                (function() {
+                                    // Ambil jawaban dari pertanyaan induk
+                                    let parentAns = $store.answersStore.answers[<?php echo $q['dependency_id']; ?>];
+                                    let trigger = '<?php echo $q['dependency_value']; ?>'; // Isinya: Lainnya (Others)
                                     
-                                    // Cek status awal (Visible atau Hidden)
-                                    this.checkVisibility(currentVal);
+                                    if (!parentAns) return false;
 
-                                    // 2. Pantau Perubahan Jawaban Induk (Realtime)
-                                    this.$watch(`$store.answersStore.answers[${this.parentId}]`, (val) => {
-                                        this.checkVisibility(val);
-                                    });
-                                }
-                            },
-
-                            // Fungsi Cerdas untuk Cek Muncul/Hilang
-                            checkVisibility(val) {
-                                if (!val) {
-                                    this.showQuestion = false;
-                                } else if (Array.isArray(val)) {
-                                    // JIKA CHECKBOX (ARRAY): Cek apakah mengandung kata kunci (misal 'Lainnya')
-                                    this.showQuestion = val.includes(this.triggerVal);
-                                } else {
-                                    // JIKA RADIO (STRING): Cek kesamaan biasa
-                                    this.showQuestion = (val == this.triggerVal);
-                                }
-
-                                // Jika sembunyi, hapus jawaban agar tidak tersimpan kotor
-                                if (!this.showQuestion) {
-                                    delete $store.answersStore.answers[<?php echo $id; ?>];
-                                }
-                                
-                                // Update Progress Bar
-                                $dispatch('recalc-progress');
-                            }
-                        }"
-                        
-                        x-show="showQuestion"
+                                    // Jika Checkbox (Array), cek apakah mengandung 'Lainnya (Others)'
+                                    if (Array.isArray(parentAns)) {
+                                        return parentAns.includes(trigger);
+                                    }
+                                    // Jika Radio (String), cek kesamaan
+                                    return parentAns == trigger;
+                                })()
+                            <?php endif; ?>
+                        "
                         x-transition:enter="transition ease-out duration-300"
-                        x-transition:enter-start="opacity-0 transform scale-95"
-                        x-transition:enter-end="opacity-100 transform scale-100"
-                        x-transition:leave="transition ease-in duration-200"
-                        x-transition:leave-start="opacity-100 transform scale-100"
-                        x-transition:leave-end="opacity-0 transform scale-95"
+                        x-transition:enter-start="opacity-0 -translate-y-2"
+                        x-transition:enter-end="opacity-100 translate-y-0"
                     >
                         <div class="absolute left-0 top-6 bottom-6 w-1 rounded-r-full transition-opacity duration-300 opacity-0 group-hover:opacity-100"
                              :class="isDark ? 'bg-indigo-400' : 'bg-indigo-500'"></div>
@@ -331,12 +305,13 @@ foreach ($questionsDB as $q) {
                                         </div>
                                     
                                     <?php elseif ($q['type'] == 'checkbox'): ?>
+    
                                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" 
                                             x-init="if (!($store.answersStore.answers[<?php echo $id; ?>] instanceof Array)) $store.answersStore.answers[<?php echo $id; ?>] = []">
                                             
                                             <?php foreach ($q['options'] as $opt): ?>
                                                 <?php 
-                                                    // FITUR TAMBAHAN: Mapping Deskripsi (Hanya Tampilan, Value tetap bersih)
+                                                    // MAPPING DESKRIPSI MANUAL (Agar Database Tetap Bersih)
                                                     $desc = '';
                                                     if (strpos($opt, 'FICO') !== false) $desc = 'Mengelola laporan keuangan, akuntansi, dan controlling budget';
                                                     elseif (strpos($opt, 'HR') !== false) $desc = 'Mengelola data karyawan, struktur organisasi, dan penggajian (Payroll)';
@@ -347,25 +322,26 @@ foreach ($questionsDB as $q) {
 
                                                 <label class="cursor-pointer group relative flex items-start h-full">
                                                     <input type="checkbox" 
-                                                        value="<?php echo htmlspecialchars($opt); ?>" 
+                                                        value="<?php echo $opt; ?>" 
                                                         x-model="$store.answersStore.answers[<?php echo $id; ?>]" 
                                                         class="sr-only">
                                                     
                                                     <div class="w-full py-3.5 px-5 rounded-xl flex items-center gap-3 transition-all duration-200 border h-full"
                                                         :class="isDark
-                                                            ? ($store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') 
+                                                            ? ($store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo $opt; ?>') 
                                                                 ? 'border-indigo-500 bg-indigo-900/30 text-indigo-300' 
                                                                 : 'border-slate-700 bg-slate-900 text-slate-400 hover:bg-slate-800')
-                                                            : ($store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') 
+                                                            : ($store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo $opt; ?>') 
                                                                 ? 'border-indigo-500 bg-indigo-50 text-indigo-700' 
                                                                 : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')">
                                                         
                                                         <div class="w-5 h-5 rounded border flex-shrink-0 flex items-center justify-center transition-all duration-200"
                                                             :class="isDark 
-                                                                ? ($store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'bg-indigo-500 border-indigo-500' : 'border-slate-600 bg-slate-800') 
-                                                                : ($store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300 bg-white')">
+                                                                ? ($store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo $opt; ?>') ? 'bg-indigo-500 border-indigo-500' : 'border-slate-600 bg-slate-800') 
+                                                                : ($store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo $opt; ?>') ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300 bg-white')">
+                                                            
                                                             <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" 
-                                                                x-show="$store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>')"
+                                                                x-show="$store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo $opt; ?>')"
                                                                 style="display: none;">
                                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
                                                             </svg>
@@ -373,7 +349,7 @@ foreach ($questionsDB as $q) {
                                                         
                                                         <div class="flex flex-col">
                                                             <span class="font-medium text-sm leading-snug select-none text-left">
-                                                                <?php echo htmlspecialchars($opt); ?>
+                                                                <?php echo $opt; ?>
                                                             </span>
                                                             <?php if($desc): ?>
                                                                 <span class="text-xs opacity-60 font-normal mt-0.5 text-left">
@@ -381,7 +357,6 @@ foreach ($questionsDB as $q) {
                                                                 </span>
                                                             <?php endif; ?>
                                                         </div>
-
                                                     </div>
                                                 </label>
                                             <?php endforeach; ?>
