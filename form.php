@@ -235,8 +235,10 @@ foreach ($questionsDB as $q) {
                         :class="isDark ? 'bg-slate-800 border-slate-700 hover:border-slate-600' : 'bg-white border-slate-100 hover:shadow-lg'"
                         style="animation-delay: <?php echo $delay; ?>s;"
                         
+                        /* LOGIKA ALPINEJS YANG LEBIH SEDERHANA & KUAT */
                         x-data="{ isVisible: true }"
                         
+                        /* x-effect: Otomatis berjalan saat data berubah */
                         x-effect="
                             // 1. Ambil ID & Value Dependency dengan AMAN (Pakai json_encode)
                             const parentId = <?php echo json_encode($q['dependency_id']); ?>;
@@ -271,6 +273,7 @@ foreach ($questionsDB as $q) {
                             }
                         "
                         
+                        /* TAMPILAN */
                         x-show="isVisible"
                         x-transition:enter="transition ease-out duration-300"
                         x-transition:enter-start="opacity-0 transform scale-95"
