@@ -235,29 +235,57 @@ foreach ($questionsDB as $q) {
                         :class="isDark ? 'bg-slate-800 border-slate-700 hover:border-slate-600' : 'bg-white border-slate-100 hover:shadow-lg'"
                         style="animation-delay: <?php echo $delay; ?>s;"
                         
+                        /* LOGIKA BARU (SUPPORT CHECKBOX ARRAY) */
                         x-data="{
                             showQuestion: true, 
                             parentId: <?php echo json_encode($q['dependency_id']); ?>,
                             triggerVal: '<?php echo $q['dependency_value']; ?>',
 
                             init() {
+                                // 1. Cek Dependensi Saat Halaman Dimuat
                                 if (this.parentId) {
-                                    this.showQuestion = false; 
+                                    // Ambil nilai jawaban induk saat ini
+                                    let currentVal = $store.answersStore.answers[this.parentId];
+                                    
+                                    // Cek status awal (Visible atau Hidden)
+                                    this.checkVisibility(currentVal);
+
+                                    // 2. Pantau Perubahan Jawaban Induk (Realtime)
                                     this.$watch(`$store.answersStore.answers[${this.parentId}]`, (val) => {
-                                        this.showQuestion = (val == this.triggerVal);
-                                        // PENTING: Saat hidden/show berubah, Hitung ulang Progress Bar!
-                                        if (!this.showQuestion) {
-                                            delete $store.answersStore.answers[<?php echo $id; ?>];
-                                        }
-                                        $dispatch('recalc-progress');
+                                        this.checkVisibility(val);
                                     });
                                 }
+                            },
+
+                            // Fungsi Cerdas untuk Cek Muncul/Hilang
+                            checkVisibility(val) {
+                                if (!val) {
+                                    this.showQuestion = false;
+                                } else if (Array.isArray(val)) {
+                                    // JIKA CHECKBOX (ARRAY): Cek apakah mengandung kata kunci (misal 'Lainnya')
+                                    this.showQuestion = val.includes(this.triggerVal);
+                                } else {
+                                    // JIKA RADIO (STRING): Cek kesamaan biasa
+                                    this.showQuestion = (val == this.triggerVal);
+                                }
+
+                                // Jika sembunyi, hapus jawaban agar tidak tersimpan kotor
+                                if (!this.showQuestion) {
+                                    delete $store.answersStore.answers[<?php echo $id; ?>];
+                                }
+                                
+                                // Update Progress Bar
+                                $dispatch('recalc-progress');
                             }
                         }"
-                        x-show="showQuestion" 
+                        
+                        x-show="showQuestion"
                         x-transition:enter="transition ease-out duration-300"
-                        x-transition:enter-start="opacity-0 scale-95"
-                        x-transition:enter-end="opacity-100 scale-100"
+                        x-transition:enter-start="opacity-0 transform scale-95"
+                        x-transition:enter-end="opacity-100 transform scale-100"
+                        x-transition:leave="transition ease-in duration-200"
+                        x-transition:leave-start="opacity-100 transform scale-100"
+                        x-transition:leave-end="opacity-0 transform scale-95"
                     >
                         <div class="absolute left-0 top-6 bottom-6 w-1 rounded-r-full transition-opacity duration-300 opacity-0 group-hover:opacity-100"
                              :class="isDark ? 'bg-indigo-400' : 'bg-indigo-500'"></div>
@@ -310,11 +338,11 @@ foreach ($questionsDB as $q) {
                                                 <?php 
                                                     // FITUR TAMBAHAN: Mapping Deskripsi (Hanya Tampilan, Value tetap bersih)
                                                     $desc = '';
-                                                    if (strpos($opt, 'FICO') !== false) $desc = 'Keuangan & Akuntansi';
-                                                    elseif (strpos($opt, 'HR') !== false) $desc = 'Data Karyawan & Payroll';
-                                                    elseif (strpos($opt, 'MM') !== false) $desc = 'Procurement & Logistik';
-                                                    elseif (strpos($opt, 'PM') !== false) $desc = 'Maintenance Aset';
-                                                    elseif (strpos($opt, 'Lainnya') !== false) $desc = 'Modul di luar pilihan di atas';
+                                                    if (strpos($opt, 'FICO') !== false) $desc = 'Mengelola laporan keuangan, akuntansi, dan controlling budget';
+                                                    elseif (strpos($opt, 'HR') !== false) $desc = 'Mengelola data karyawan, struktur organisasi, dan penggajian (Payroll)';
+                                                    elseif (strpos($opt, 'MM') !== false) $desc = 'Mengelola pengadaan barang (procurement), inventory, dan logistik';
+                                                    elseif (strpos($opt, 'PM') !== false) $desc = 'Mengelola jadwal pemeliharaan (maintenance) aset dan mesin operasional';
+                                                    elseif (strpos($opt, 'Lainnya') !== false) $desc = 'Modul di luar pilihan di atas/isikan fitur apa yang Anda gunakan';
                                                 ?>
 
                                                 <label class="cursor-pointer group relative flex items-start h-full">
