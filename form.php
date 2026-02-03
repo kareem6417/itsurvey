@@ -38,503 +38,283 @@ $user = [
 ];
 
 // 5. AMBIL PERTANYAAN
-$stmt = $pdo->prepare("SELECT * FROM questions WHERE company_id IS NULL OR company_id = ? ORDER BY id ASC");
-$stmt->execute([$final_company_id]);
-$questionsDB = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$stmtQ = $pdo->prepare("SELECT * FROM questions WHERE company_id = ? OR company_id IS NULL ORDER BY id ASC");
+$stmtQ->execute([$final_company_id]);
+$questions = $stmtQ->fetchAll(PDO::FETCH_ASSOC);
 
-// 6. FORMAT PERTANYAAN
-$questions = [];
-$mainCounter = 0; 
-$subCounter = 0;  
-$lastParentNum = 0; 
-
-foreach ($questionsDB as $q) {
-    $isChild = !empty($q['dependency_id']);
-    
-    if (!$isChild) {
-        $mainCounter++;
-        $subCounter = 0;
-        $displayNumber = "$mainCounter";
-        $lastParentNum = $mainCounter; 
-    } else {
-        $subCounter++;
-        $displayNumber = "$lastParentNum.$subCounter";
-    }
-
-    $optionsArray = [];
-    if (!empty($q['options'])) {
-        $optionsArray = array_map('trim', explode(',', $q['options']));
-    }
-
-    $questions[$q['id']] = [
-        'id' => $q['id'],
-        'text' => $q['question_text'],
-        'type' => $q['input_type'], 
-        'options' => $optionsArray,
-        'number' => $displayNumber,
-        'is_child' => $isChild,
-        'dependency_id' => !empty($q['dependency_id']) ? $q['dependency_id'] : null,
-        'dependency_value' => !empty($q['dependency_value']) ? $q['dependency_value'] : null,
-        'label_min' => !empty($q['label_min']) ? $q['label_min'] : 'Sangat Buruk',
-        'label_max' => !empty($q['label_max']) ? $q['label_max'] : 'Sangat Baik'
-    ];
-}
+$totalQuestions = count($questions);
 ?>
 
 <!DOCTYPE html>
-<html lang="id" class="scroll-smooth">
+<html lang="id" x-data="{ isDark: false }" :class="{ 'dark': isDark }">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IT Satisfaction Survey</title>
-    
+    <title>Survey Kepuasan Layanan ITE</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
                     fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
-                    colors: { darkCard: '#1e293b', darkBg: '#0f172a' }
+                    animation: { 'fade-in-up': 'fadeInUp 0.5s ease-out forwards' }
                 }
             }
         }
     </script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/x-icon" href="favicon/favicon.ico">
-    
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; }
-        
-        /* Background Mesh */
-        .bg-mesh-light {
-            background-color: #f8fafc;
-            background-image: 
-                radial-gradient(at 0% 0%, hsla(253,16%,96%,1) 0, transparent 50%), 
-                radial-gradient(at 50% 0%, hsla(225,39%,90%,1) 0, transparent 50%), 
-                radial-gradient(at 100% 0%, hsla(339,49%,90%,1) 0, transparent 50%);
-            background-attachment: fixed;
-        }
-        .bg-mesh-dark {
-            background-color: #0f172a;
-            background-image: 
-                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-                radial-gradient(at 50% 0%, hsla(225,39%,20%,1) 0, transparent 50%), 
-                radial-gradient(at 100% 0%, hsla(339,49%,20%,1) 0, transparent 50%);
-            background-attachment: fixed;
-        }
-
-        .pro-card {
-            border-radius: 1.5rem;
-            transition: transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
-        }
-        
-        .rating-circle {
-            transition: all 0.2s ease;
-            width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
-            border-radius: 9999px; font-weight: 700; 
-        }
-        .rating-circle:hover { transform: scale(1.1); }
-
-        .fade-in-up { animation: fadeInUp 0.5s ease-out forwards; opacity: 0; transform: translateY(15px); }
-        @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
-        
-        /* Progress Bar di Header */
-        .progress-container { position: fixed; top: 0; left: 0; width: 100%; height: 5px; z-index: 110; background: rgba(0,0,0,0.05); }
-        .progress-bar { height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899); transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
-        
-        /* Tooltip Arrow */
-        .tooltip-arrow::before {
-            content: ""; position: absolute; top: -5px; right: 10px;
-            border-width: 0 5px 5px 5px; border-style: solid; border-color: transparent transparent #1e293b transparent;
-        }
+        [x-cloak] { display: none !important; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .pro-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        body { scroll-behavior: smooth; }
     </style>
 </head>
+<body class="bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
 
-<body x-data="themeHandler()" :class="isDark ? 'bg-mesh-dark text-slate-200' : 'bg-mesh-light text-slate-800'" class="antialiased min-h-screen transition-colors duration-300">
-
-    <div class="progress-container">
-        <div class="progress-bar" id="smartProgressBar" style="width: 0%"></div>
-    </div>
-
-    <header class="fixed top-0 inset-x-0 z-40 transition-all duration-300" 
-        :class="scrolled ? (isDark ? 'bg-slate-900/80 border-slate-700' : 'bg-white/80 border-slate-200') + ' backdrop-blur-md shadow-sm border-b py-3' : 'bg-transparent py-6'"
-        x-data="{ scrolled: false }" @scroll.window="scrolled = (window.pageYOffset > 20)">
+    <div x-data="formApp()" x-cloak class="relative">
         
-        <div class="max-w-5xl mx-auto px-6 flex justify-between items-center">
-            <div class="flex items-center gap-4">
-                <img src="logo2.png" alt="Logo" class="h-10 w-auto object-contain drop-shadow-md">
-                <div class="hidden sm:block">
-                    <h1 class="font-bold text-lg leading-tight tracking-tight" :class="isDark ? 'text-white' : 'text-slate-800'">
-                        IT Satisfaction Survey
-                    </h1>
-                </div>
-            </div>
-            
-            <div class="flex items-center gap-4">
-                
-                <div class="relative group">
-                    <button @click="toggleTheme()" class="p-2 rounded-full transition-colors duration-200 relative z-10" 
-                        :class="isDark ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700 ring-1 ring-slate-700' : 'bg-white text-slate-600 hover:bg-slate-100 shadow-sm border border-slate-200'">
-                        <svg x-show="isDark" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                        <svg x-show="!isDark" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
-                    </button>
-
-                    <div class="absolute right-0 top-full mt-2 w-32 px-2 py-1.5 bg-slate-800 text-white text-xs text-center rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none shadow-lg tooltip-arrow z-20">
-                        Ganti Tema (Gelap/Terang)
-                    </div>
-                </div>
-
-                <div class="hidden sm:flex items-center gap-3 pl-4 pr-1.5 py-1.5 rounded-full border transition-all"
-                    :class="isDark ? 'border-slate-700 bg-slate-800' : 'border-white bg-white/60 shadow-sm'">
-                    <div class="text-right">
-                        <p class="text-xs font-bold" :class="isDark ? 'text-slate-200' : 'text-slate-700'"><?php echo explode(' ', $user['name'])[0]; ?></p>
-                        <p class="text-[10px]" :class="isDark ? 'text-slate-400' : 'text-slate-500'"><?php echo htmlspecialchars($user['division']); ?></p>
-                    </div>
-                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-sm font-extrabold text-white shadow-sm">
-                        <?php echo substr($user['name'], 0, 1); ?>
-                    </div>
-                </div>
-            </div>
+        <div class="fixed top-0 left-0 w-full h-2 bg-slate-200 dark:bg-slate-800 z-50">
+            <div class="h-full bg-indigo-600 transition-all duration-500 ease-out" :style="'width: ' + progress + '%'"></div>
         </div>
-    </header>
 
-    <main class="pt-32 pb-24 px-4" x-data="surveyForm()">
-        <div class="max-w-3xl mx-auto space-y-6">
-
-            <div class="pro-card p-8 sm:p-10 text-center relative overflow-hidden fade-in-up shadow-xl" 
-                 :class="isDark ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-100'"
-                 style="animation-delay: 0.05s;">
-                <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
-                <div class="relative z-10">
-                    <h2 class="text-2xl sm:text-3xl font-bold mb-3 tracking-tight" :class="isDark ? 'text-white' : 'text-slate-800'">
-                        Halo, <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500"><?php echo htmlspecialchars($user['name']); ?></span> 👋
-                    </h2>
-                    <p class="leading-relaxed max-w-xl mx-auto text-base" :class="isDark ? 'text-slate-400' : 'text-slate-500'">
-                        Pendapat Anda sangat berharga. Mohon isi survey ini dengan objektif untuk unit 
-                        <span class="font-bold text-indigo-500"><?php echo htmlspecialchars($user['company_name']); ?></span>.
-                    </p>
+        <header class="sticky top-2 z-40 px-4 mt-4">
+            <div class="max-w-4xl mx-auto bg-white/80 dark:bg-slate-800/80 backdrop-blur-md rounded-2xl shadow-lg border border-white/20 p-4 flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-200">IT</div>
+                    <div>
+                        <h2 class="font-bold text-slate-800 dark:text-white leading-tight">Survey ITE 2026</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400" x-text="userData.company_name"></p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button @click="isDark = !isDark" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 transition-colors">
+                        <svg x-show="!isDark" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                        <svg x-show="isDark" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    </button>
                 </div>
             </div>
+        </header>
 
-            <?php if (empty($questions)): ?>
-                <div class="pro-card p-12 text-center fade-in-up" :class="isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'">
-                    <h3 class="font-bold text-2xl mb-3" :class="isDark ? 'text-white' : 'text-slate-800'">Survey Belum Tersedia</h3>
-                    <a href="index.php" class="inline-flex items-center gap-2 bg-slate-800 text-white font-bold py-3 px-8 rounded-xl hover:bg-slate-900 transition">Kembali</a>
+        <main class="max-w-4xl mx-auto px-4 py-8 pb-32">
+            <div class="mb-10 p-8 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-[2rem] text-white shadow-2xl relative overflow-hidden group">
+                <div class="relative z-10">
+                    <span class="px-3 py-1 bg-white/20 rounded-full text-xs font-medium backdrop-blur-md mb-4 inline-block">Survey Digital</span>
+                    <h1 class="text-3xl font-bold mb-2">Halo, <span x-text="userData.name"></span>!</h1>
+                    <p class="text-indigo-100 max-w-md">Bantu kami meningkatkan kualitas layanan IT dengan memberikan feedback jujur Anda.</p>
                 </div>
-            <?php else: ?>
+                <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-all duration-700"></div>
+            </div>
 
-                <form @submit.prevent="submitAll()" class="space-y-6">
-                    <?php $delay = 0.15; ?>
-                    <?php foreach ($questions as $id => $q): ?>
+            <div class="space-y-8">
+                <?php $delay = 0.1; foreach ($questions as $index => $q): ?>
+                    <?php 
+                        $id = $q['id']; 
+                        $delay += 0.05;
+                    ?>
                     
                     <div id="q-card-<?php echo $id; ?>" 
-                        class="pro-card p-6 sm:p-8 fade-in-up relative group transition-all duration-300 border" 
-                        :class="isDark ? 'bg-slate-800 border-slate-700 hover:border-slate-600' : 'bg-white border-slate-100 hover:shadow-lg'"
-                        style="animation-delay: <?php echo $delay; ?>s;"
+                        class="pro-card p-6 sm:p-8 rounded-3xl border transition-all duration-300 relative overflow-hidden" 
+                        :class="isDark ? 'bg-slate-800 border-slate-700 shadow-none' : 'bg-white border-slate-100 shadow-xl shadow-slate-200/50'"
+                        style="animation: fadeInUp 0.5s ease-out <?php echo $delay; ?>s forwards; opacity: 0;"
                         
-                        /* LOGIC SEDERHANA & KUAT */
-                        x-show="
-                            <?php if (!$q['dependency_id']): ?>
-                                true
-                            <?php else: ?>
-                                // Menggunakan IIFE (Immediately Invoked Function Expression) agar bersih
-                                (function() {
-                                    // Ambil jawaban dari pertanyaan induk
-                                    let parentAns = $store.answersStore.answers[<?php echo $q['dependency_id']; ?>];
-                                    let trigger = '<?php echo $q['dependency_value']; ?>'; // Isinya: Lainnya (Others)
-                                    
-                                    if (!parentAns) return false;
-
-                                    // Jika Checkbox (Array), cek apakah mengandung 'Lainnya (Others)'
-                                    if (Array.isArray(parentAns)) {
-                                        return parentAns.includes(trigger);
-                                    }
-                                    // Jika Radio (String), cek kesamaan
-                                    return parentAns == trigger;
-                                })()
-                            <?php endif; ?>
-                        "
+                        /* LOGIKA DEPENDENSI REVISI */
+                        x-show="isVisible(<?php echo $id; ?>, <?php echo json_encode($q['dependency_id']); ?>, <?php echo json_encode($q['dependency_value']); ?>)"
                         x-transition:enter="transition ease-out duration-300"
-                        x-transition:enter-start="opacity-0 -translate-y-2"
-                        x-transition:enter-end="opacity-100 translate-y-0"
+                        x-transition:enter-start="opacity-0 transform -translate-y-4"
+                        x-transition:enter-end="opacity-100 transform translate-y-0"
                     >
-                        <div class="absolute left-0 top-6 bottom-6 w-1 rounded-r-full transition-opacity duration-300 opacity-0 group-hover:opacity-100"
-                             :class="isDark ? 'bg-indigo-400' : 'bg-indigo-500'"></div>
-
-                        <div class="flex gap-4 sm:gap-6 <?php echo $q['is_child'] ? 'ml-0 sm:ml-8 pl-4 border-l-2' : ''; ?>"
-                             :class="isDark ? 'border-slate-700' : 'border-indigo-50'">
-                            
-                            <div class="flex-shrink-0">
-                                <div class="flex flex-col items-center justify-center w-14 h-14 rounded-2xl font-bold text-lg border transition-colors"
-                                    :class="isDark 
-                                        ? (<?php echo $q['is_child'] ? "'bg-slate-900 text-slate-500 border-slate-700'" : "'bg-indigo-600 text-white border-transparent shadow-lg shadow-indigo-900/20'" ?>)
-                                        : (<?php echo $q['is_child'] ? "'bg-slate-50 text-slate-400 border-transparent'" : "'bg-indigo-600 text-white shadow-lg shadow-indigo-200 border-transparent'" ?>)">
-                                    <?php echo $q['number']; ?>
-                                </div>
+                        
+                        <div class="flex items-start gap-4 mb-6">
+                            <div class="flex-shrink-0 w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-lg">
+                                <?php echo $index + 1; ?>
                             </div>
+                            <h3 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight pt-1">
+                                <?php echo $q['question_text']; ?>
+                            </h3>
+                        </div>
 
-                            <div class="flex-grow pt-1">
-                                <h3 class="text-lg font-bold leading-snug mb-6" :class="isDark ? 'text-slate-100' : 'text-slate-800'">
-                                    <?php echo $q['text']; ?>
-                                </h3>
-
-                                <div class="w-full" @change="$dispatch('recalc-progress')">
-                                    <?php if ($q['type'] == 'yes_no'): ?>
-                                        <div class="grid grid-cols-2 gap-4 max-w-sm">
+                        <div class="pl-0 sm:pl-14">
+                            <?php if ($q['input_type'] == 'rating_10'): ?>
+                                <div class="space-y-4">
+                                    <div class="grid grid-cols-5 sm:grid-cols-10 gap-2">
+                                        <?php for($i=1; $i<=10; $i++): ?>
                                             <label class="cursor-pointer group">
-                                                <input type="radio" name="q_<?php echo $id; ?>" value="Ya" x-model="$store.answersStore.answers[<?php echo $id; ?>]" class="sr-only">
-                                                <div class="w-full py-3 px-4 rounded-xl flex items-center justify-center gap-3 border transition-all"
-                                                     :class="isDark 
-                                                        ? ($store.answersStore.answers[<?php echo $id; ?>] == 'Ya' ? 'bg-emerald-900/30 border-emerald-500 text-emerald-400' : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800')
-                                                        : ($store.answersStore.answers[<?php echo $id; ?>] == 'Ya' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50')">
-                                                    <span class="font-bold">Ya</span>
+                                                <input type="radio" name="q_<?php echo $id; ?>" value="<?php echo $i; ?>" x-model="$store.answersStore.answers[<?php echo $id; ?>]" @change="recalc()" class="sr-only">
+                                                <div class="h-12 rounded-xl border-2 flex items-center justify-center font-bold transition-all duration-200"
+                                                    :class="$store.answersStore.answers[<?php echo $id; ?>] == <?php echo $i; ?> 
+                                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200' 
+                                                        : (isDark ? 'border-slate-700 text-slate-400 hover:border-indigo-500' : 'border-slate-100 text-slate-400 hover:border-indigo-500 bg-slate-50')">
+                                                    <?php echo $i; ?>
                                                 </div>
                                             </label>
-                                            <label class="cursor-pointer group">
-                                                <input type="radio" name="q_<?php echo $id; ?>" value="Tidak" x-model="$store.answersStore.answers[<?php echo $id; ?>]" class="sr-only">
-                                                <div class="w-full py-3 px-4 rounded-xl flex items-center justify-center gap-3 border transition-all"
-                                                     :class="isDark 
-                                                        ? ($store.answersStore.answers[<?php echo $id; ?>] == 'Tidak' ? 'bg-red-900/30 border-red-500 text-red-400' : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800')
-                                                        : ($store.answersStore.answers[<?php echo $id; ?>] == 'Tidak' ? 'bg-red-50 border-red-500 text-red-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50')">
-                                                    <span class="font-bold">Tidak</span>
-                                                </div>
-                                            </label>
-                                        </div>
-                                    
-                                    <?php elseif ($q['type'] == 'checkbox'): ?>
-    
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" 
-                                            x-init="if (!($store.answersStore.answers[<?php echo $id; ?>] instanceof Array)) $store.answersStore.answers[<?php echo $id; ?>] = []">
-                                            
-                                            <?php foreach ($q['options'] as $opt): ?>
-                                                <?php 
-                                                    // MAPPING DESKRIPSI MANUAL (Agar Database Tetap Bersih)
-                                                    $desc = '';
-                                                    if (strpos($opt, 'FICO') !== false) $desc = 'Mengelola laporan keuangan, akuntansi, dan controlling budget';
-                                                    elseif (strpos($opt, 'HR') !== false) $desc = 'Mengelola data karyawan, struktur organisasi, dan penggajian (Payroll)';
-                                                    elseif (strpos($opt, 'MM') !== false) $desc = 'Mengelola pengadaan barang (procurement), inventory, dan logistik';
-                                                    elseif (strpos($opt, 'PM') !== false) $desc = 'Mengelola jadwal pemeliharaan (maintenance) aset dan mesin operasional';
-                                                    elseif (strpos($opt, 'Lainnya') !== false) $desc = 'Modul di luar pilihan di atas/isikan fitur apa yang Anda gunakan';
-                                                ?>
-
-                                                <label class="cursor-pointer group relative flex items-start h-full">
-                                                    <input type="checkbox" 
-                                                        value="<?php echo $opt; ?>" 
-                                                        x-model="$store.answersStore.answers[<?php echo $id; ?>]" 
-                                                        class="sr-only">
-                                                    
-                                                    <div class="w-full py-3.5 px-5 rounded-xl flex items-center gap-3 transition-all duration-200 border h-full"
-                                                        :class="isDark
-                                                            ? ($store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo $opt; ?>') 
-                                                                ? 'border-indigo-500 bg-indigo-900/30 text-indigo-300' 
-                                                                : 'border-slate-700 bg-slate-900 text-slate-400 hover:bg-slate-800')
-                                                            : ($store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo $opt; ?>') 
-                                                                ? 'border-indigo-500 bg-indigo-50 text-indigo-700' 
-                                                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')">
-                                                        
-                                                        <div class="w-5 h-5 rounded border flex-shrink-0 flex items-center justify-center transition-all duration-200"
-                                                            :class="isDark 
-                                                                ? ($store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo $opt; ?>') ? 'bg-indigo-500 border-indigo-500' : 'border-slate-600 bg-slate-800') 
-                                                                : ($store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo $opt; ?>') ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300 bg-white')">
-                                                            
-                                                            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" 
-                                                                x-show="$store.answersStore.answers[<?php echo $id; ?>] && $store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo $opt; ?>')"
-                                                                style="display: none;">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
-                                                            </svg>
-                                                        </div>
-                                                        
-                                                        <div class="flex flex-col">
-                                                            <span class="font-medium text-sm leading-snug select-none text-left">
-                                                                <?php echo $opt; ?>
-                                                            </span>
-                                                            <?php if($desc): ?>
-                                                                <span class="text-xs opacity-60 font-normal mt-0.5 text-left">
-                                                                    <?php echo $desc; ?>
-                                                                </span>
-                                                            <?php endif; ?>
-                                                        </div>
-                                                    </div>
-                                                </label>
-                                            <?php endforeach; ?>
-                                        </div>
-
-                                    <?php elseif ($q['type'] == 'rating_10'): ?>
-                                        <div class="grid grid-cols-5 sm:grid-cols-10 gap-2 sm:gap-3">
-                                            <?php for ($i = 1; $i <= 10; $i++): ?>
-                                                <label class="cursor-pointer group relative">
-                                                    <input type="radio" name="q_<?php echo $id; ?>" value="<?php echo $i; ?>" x-model="$store.answersStore.answers[<?php echo $id; ?>]" class="sr-only">
-                                                    <div class="rating-circle border-2" 
-                                                         :class="isDark
-                                                            ? ($store.answersStore.answers[<?php echo $id; ?>] == <?php echo $i; ?> ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-slate-700 bg-slate-900 text-slate-500 hover:border-indigo-400 hover:text-indigo-400')
-                                                            : ($store.answersStore.answers[<?php echo $id; ?>] == <?php echo $i; ?> ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-blue-400 hover:text-blue-500')">
-                                                        <?php echo $i; ?>
-                                                    </div>
-                                                </label>
-                                            <?php endfor; ?>
-                                        </div>
-                                        <div class="flex justify-between mt-2 text-xs font-bold uppercase tracking-wider px-1" :class="isDark ? 'text-slate-500' : 'text-slate-400'">
-                                            <span><?php echo $q['label_min']; ?></span>
-                                            <span><?php echo $q['label_max']; ?></span>
-                                        </div>
-
-                                    <?php elseif ($q['type'] == 'text'): ?>
-                                        <textarea x-model="$store.answersStore.answers[<?php echo $id; ?>]" rows="3" 
-                                            class="w-full rounded-xl p-4 text-sm resize-none focus:ring-2 focus:ring-indigo-500 outline-none transition-all border"
-                                            :class="isDark ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-600' : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'"
-                                            placeholder="Tulis jawaban Anda di sini..."></textarea>
-                                    <?php endif; ?>
+                                        <?php endfor; ?>
+                                    </div>
+                                    <div class="flex justify-between text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
+                                        <span><?php echo $q['min_label'] ?? 'Sangat Buruk'; ?></span>
+                                        <span><?php echo $q['max_label'] ?? 'Sangat Baik'; ?></span>
+                                    </div>
                                 </div>
-                            </div>
+
+                            <?php elseif ($q['input_type'] == 'yes_no'): ?>
+                                <div class="flex flex-col sm:flex-row gap-4">
+                                    <?php foreach(['Ya', 'Tidak'] as $val): ?>
+                                        <label class="flex-1 cursor-pointer">
+                                            <input type="radio" name="q_<?php echo $id; ?>" value="<?php echo $val; ?>" x-model="$store.answersStore.answers[<?php echo $id; ?>]" @change="recalc()" class="sr-only">
+                                            <div class="py-4 px-6 rounded-2xl border-2 text-center font-bold transition-all duration-200"
+                                                :class="$store.answersStore.answers[<?php echo $id; ?>] == '<?php echo $val; ?>'
+                                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg'
+                                                    : (isDark ? 'border-slate-700 text-slate-500 hover:bg-slate-700' : 'border-slate-100 text-slate-500 bg-slate-50 hover:bg-slate-100')">
+                                                <?php echo $val; ?>
+                                            </div>
+                                        </label>
+                                    <?php endforeach; ?>
+                                </div>
+
+                            <?php elseif ($q['input_type'] == 'checkbox'): ?>
+                                <?php 
+                                    $options = array_map('trim', explode(',', $q['options'])); 
+                                ?>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" x-init="if(!Array.isArray($store.answersStore.answers[<?php echo $id; ?>])) $store.answersStore.answers[<?php echo $id; ?>] = []">
+                                    <?php foreach ($options as $opt): ?>
+                                        <?php 
+                                            $desc = '';
+                                            if (strpos($opt, 'FICO') !== false) $desc = 'Keuangan & Akuntansi';
+                                            elseif (strpos($opt, 'HR') !== false) $desc = 'Data Karyawan & Payroll';
+                                            elseif (strpos($opt, 'MM') !== false) $desc = 'Logistik & Inventory';
+                                            elseif (strpos($opt, 'PM') !== false) $desc = 'Pemeliharaan Aset';
+                                            elseif (strpos($opt, 'Lainnya') !== false) $desc = 'Modul lainnya';
+                                        ?>
+                                        <label class="cursor-pointer group">
+                                            <input type="checkbox" value="<?php echo htmlspecialchars($opt); ?>" x-model="$store.answersStore.answers[<?php echo $id; ?>]" @change="recalc()" class="sr-only">
+                                            <div class="w-full p-4 rounded-2xl border-2 flex items-center gap-4 transition-all duration-200"
+                                                :class="$store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>')
+                                                    ? 'bg-indigo-600 border-indigo-600 text-white'
+                                                    : (isDark ? 'border-slate-700 bg-slate-800 text-slate-400' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100')">
+                                                <div class="w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0"
+                                                     :class="$store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>') ? 'bg-white border-white' : 'border-slate-300'">
+                                                    <svg x-show="$store.answersStore.answers[<?php echo $id; ?>].includes('<?php echo htmlspecialchars($opt); ?>')" class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="4" d="M5 13l4 4L19 7"></path></svg>
+                                                </div>
+                                                <div class="flex flex-col">
+                                                    <span class="font-bold text-sm"><?php echo $opt; ?></span>
+                                                    <span class="text-[10px] opacity-70 font-medium"><?php echo $desc; ?></span>
+                                                </div>
+                                            </div>
+                                        </label>
+                                    <?php endforeach; ?>
+                                </div>
+
+                            <?php else: ?>
+                                <textarea 
+                                    x-model="$store.answersStore.answers[<?php echo $id; ?>]" 
+                                    @input="recalc()"
+                                    rows="4" 
+                                    class="w-full p-5 rounded-2xl border-2 outline-none transition-all duration-200"
+                                    :class="isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-indigo-500' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-indigo-500'"
+                                    placeholder="Ketik jawaban Anda di sini..."></textarea>
+                            <?php endif; ?>
                         </div>
                     </div>
-                    <?php $delay += 0.08; ?>
-                    <?php endforeach; ?>
+                <?php endforeach; ?>
+            </div>
 
-                    <div class="pt-8 flex justify-center pb-12">
-                        <button type="submit" :disabled="isSubmitting" 
-                            class="group relative w-full sm:w-auto min-w-[280px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-base font-bold py-4 px-10 rounded-2xl shadow-xl shadow-indigo-500/30 transform hover:-translate-y-1 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed overflow-hidden">
-                            <div class="flex items-center justify-center gap-3 relative z-10">
-                                <svg x-show="isSubmitting" class="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                <span x-show="!isSubmitting">KIRIM SURVEY SEKARANG</span>
-                                <span x-show="isSubmitting">Memproses...</span>
-                            </div>
-                        </button>
-                    </div>
-                </form>
-            <?php endif; ?>
-        </div>
-    </main>
+            <div class="mt-16 text-center">
+                <button 
+                    @click="submit()" 
+                    :disabled="isSubmitting"
+                    class="w-full sm:w-auto px-12 py-5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-xl shadow-indigo-200 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3 mx-auto"
+                >
+                    <template x-if="!isSubmitting">
+                        <div class="flex items-center gap-3">
+                            <span>Kirim Survey</span>
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                        </div>
+                    </template>
+                    <template x-if="isSubmitting">
+                        <span>Sedang Mengirim...</span>
+                    </template>
+                </button>
+            </div>
+        </main>
+
+        <footer class="py-10 text-center border-t border-slate-100 dark:border-slate-800">
+            <p class="text-slate-400 text-sm font-medium">© 2026 ITE Support Departement. All rights reserved.</p>
+        </footer>
+    </div>
 
     <script>
-        // 1. Theme Handler
-        function themeHandler() {
-            return {
-                isDark: false,
-                init() {
-                    if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                        this.isDark = true;
-                    }
-                },
-                toggleTheme() {
-                    this.isDark = !this.isDark;
-                    localStorage.theme = this.isDark ? 'dark' : 'light';
-                }
-            }
-        }
-
-        // 2. Alpine Store Init
         document.addEventListener('alpine:init', () => {
-            Alpine.store('answersStore', { answers: {} });
+            Alpine.store('answersStore', {
+                answers: {}
+            });
         });
 
-        // 3. MAIN LOGIC
-        function surveyForm() {
+        function formApp() {
             return {
-                isSubmitting: false,
                 userData: <?php echo json_encode($user); ?>,
-                questionsData: <?php echo json_encode($questions); ?>,
+                totalQuestions: <?php echo $totalQuestions; ?>,
+                progress: 0,
+                isSubmitting: false,
 
                 init() {
-                    // Pantau perubahan jawaban untuk update progress bar
-                    this.$watch('$store.answersStore.answers', () => {
-                        this.calculateProgress();
-                    });
-                    // Event listener manual
-                    window.addEventListener('recalc-progress', () => {
-                        this.calculateProgress();
-                    });
-                    
-                    // Hitung progress saat pertama kali load (pasti 0%)
-                    this.calculateProgress();
+                    // Pastikan progress terhitung di awal
+                    this.recalc();
                 },
 
-                // --- REVISI RUMUS PROGRESS BAR ---
-                calculateProgress() {
-                    const answers = Alpine.store('answersStore').answers;
+                isVisible(id, parentId, trigger) {
+                    if (!parentId) return true;
                     
-                    let visibleQuestionsCount = 0; // Penyebut (Denominator)
-                    let filledQuestionsCount = 0;  // Pembilang (Numerator)
+                    let ans = Alpine.store('answersStore').answers[parentId];
+                    if (!ans) return false;
 
-                    for (const [id, q] of Object.entries(this.questionsData)) {
-                        
-                        // 1. Cek Visibility
-                        let isVisible = true;
-                        if (q.dependency_id) {
-                            // Jika induk belum dijawab ATAU jawaban tidak sesuai pemicu -> Sembunyi
-                            // Saat awal load, answers[induk] pasti undefined, jadi otomatis isVisible = false
-                            if (answers[q.dependency_id] !== q.dependency_value) {
-                                isVisible = false;
-                            }
-                        }
-
-                        // 2. Hitung Hanya yang Tampil
-                        if (isVisible) {
-                            visibleQuestionsCount++; // Tambah total soal yang harus dikerjakan saat ini
-
-                            const ans = answers[id];
-                            // Cek apakah sudah diisi (tidak null/kosong)
-                            const isFilled = (ans !== undefined && ans !== null && ans !== "" && !(Array.isArray(ans) && ans.length === 0));
-                            
-                            if (isFilled) {
-                                filledQuestionsCount++;
-                            }
-                        }
+                    // Support Checkbox (Array) dan Radio (String)
+                    let visible = Array.isArray(ans) ? ans.includes(trigger) : ans == trigger;
+                    
+                    // Bersihkan jawaban jika pertanyaan dihidden
+                    if (!visible && Alpine.store('answersStore').answers[id]) {
+                        delete Alpine.store('answersStore').answers[id];
                     }
-
-                    // 3. Kalkulasi Persentase
-                    let percent = 0;
-                    if (visibleQuestionsCount > 0) {
-                        percent = Math.round((filledQuestionsCount / visibleQuestionsCount) * 100);
-                    }
-
-                    // Update UI
-                    const bar = document.getElementById('smartProgressBar');
-                    if(bar) bar.style.width = percent + '%';
+                    return visible;
                 },
 
-                async submitAll() {
-                    const submittedAnswers = Alpine.store('answersStore').answers;
-                    let firstMissingId = null;
-                    let missingCount = 0;
-
-                    // Validasi Wajib Isi (Hanya yang Visible)
-                    for (const [id, q] of Object.entries(this.questionsData)) {
-                        let isVisible = true;
-                        if (q.dependency_id) {
-                            if (submittedAnswers[q.dependency_id] !== q.dependency_value) isVisible = false;
+                recalc() {
+                    let filled = 0;
+                    let visibleCount = 0;
+                    
+                    // Kita scan DOM untuk menghitung hanya yang visible
+                    document.querySelectorAll('.pro-card').forEach((card) => {
+                        if (card.style.display !== 'none') {
+                            visibleCount++;
+                            let qId = card.id.split('-')[2];
+                            let val = Alpine.store('answersStore').answers[qId];
+                            if (val && val.length > 0) filled++;
                         }
+                    });
 
-                        if (isVisible) {
-                            const answer = submittedAnswers[id];
-                            const isEmpty = (answer === undefined || answer === null || answer === "" || (Array.isArray(answer) && answer.length === 0));
+                    this.progress = visibleCount > 0 ? Math.round((filled / visibleCount) * 100) : 0;
+                },
 
-                            if (isEmpty) {
-                                if (!firstMissingId) firstMissingId = id;
-                                missingCount++;
-                                const el = document.getElementById('q-card-' + id);
-                                if(el) {
-                                    el.classList.add('ring-2', 'ring-red-500', 'bg-red-50', 'dark:bg-red-900/20');
-                                    setTimeout(() => el.classList.remove('ring-2', 'ring-red-500', 'bg-red-50', 'dark:bg-red-900/20'), 3000);
-                                }
-                            }
+                async submit() {
+                    // Validasi minimal
+                    let unanswered = [];
+                    document.querySelectorAll('.pro-card').forEach((card) => {
+                        if (card.style.display !== 'none') {
+                            let qId = card.id.split('-')[2];
+                            let val = Alpine.store('answersStore').answers[qId];
+                            if (!val || val.length === 0) unanswered.push(qId);
                         }
-                    }
+                    });
 
-                    if (missingCount > 0) {
-                        alert(`Mohon lengkapi ${missingCount} pertanyaan yang belum diisi.`);
-                        if (firstMissingId) {
-                            const el = document.getElementById('q-card-' + firstMissingId);
-                            if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }
+                    if (unanswered.length > 0) {
+                        alert("Mohon lengkapi semua pertanyaan yang tampil.");
+                        document.getElementById('q-card-' + unanswered[0]).scrollIntoView({ behavior: 'smooth', block: 'center' });
                         return;
                     }
 
                     this.isSubmitting = true;
-                    const payload = { ...this.userData, answers: submittedAnswers };
+                    const payload = { ...this.userData, answers: Alpine.store('answersStore').answers };
 
                     try {
                         const res = await fetch('handler.php?action=submit', {
@@ -543,19 +323,17 @@ foreach ($questionsDB as $q) {
                             body: JSON.stringify(payload)
                         });
 
-                        const text = await res.text(); 
-                        let json;
-                        try { json = JSON.parse(text); } catch (e) { throw new Error("Respon server tidak valid."); }
+                        const text = await res.text();
+                        let json = JSON.parse(text);
 
                         if (json.status === 'success') {
                             window.location.href = 'thankyou.php';
                         } else {
-                            alert("Gagal menyimpan: " + (json.message || "Unknown Error"));
+                            alert("Gagal: " + json.message);
                         }
-
-                    } catch(e) { 
+                    } catch(e) {
                         console.error(e);
-                        alert("Terjadi kesalahan saat mengirim data.");
+                        alert("Koneksi bermasalah.");
                     } finally {
                         this.isSubmitting = false;
                     }
