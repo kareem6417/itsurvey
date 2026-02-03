@@ -367,8 +367,7 @@ foreach ($questionsDB as $q) {
                                                 </label>
                                             <?php endforeach; ?>
                                         </div>
-                                    <?php endif; ?>
-
+                                        
                                     <?php elseif ($q['type'] == 'rating_10'): ?>
                                         <div class="grid grid-cols-5 sm:grid-cols-10 gap-2 sm:gap-3">
                                             <?php for ($i = 1; $i <= 10; $i++): ?>
