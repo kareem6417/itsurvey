@@ -235,51 +235,43 @@ foreach ($questionsDB as $q) {
                         :class="isDark ? 'bg-slate-800 border-slate-700 hover:border-slate-600' : 'bg-white border-slate-100 hover:shadow-lg'"
                         style="animation-delay: <?php echo $delay; ?>s;"
                         
-                        /* LOGIKA BARU (SUPPORT CHECKBOX ARRAY) */
-                        x-data="{
-                            showQuestion: true, 
-                            parentId: <?php echo json_encode($q['dependency_id']); ?>,
-                            triggerVal: '<?php echo $q['dependency_value']; ?>',
-
-                            init() {
-                                // 1. Cek Dependensi Saat Halaman Dimuat
-                                if (this.parentId) {
-                                    // Ambil nilai jawaban induk saat ini
-                                    let currentVal = $store.answersStore.answers[this.parentId];
-                                    
-                                    // Cek status awal (Visible atau Hidden)
-                                    this.checkVisibility(currentVal);
-
-                                    // 2. Pantau Perubahan Jawaban Induk (Realtime)
-                                    this.$watch(`$store.answersStore.answers[${this.parentId}]`, (val) => {
-                                        this.checkVisibility(val);
-                                    });
-                                }
-                            },
-
-                            // Fungsi Cerdas untuk Cek Muncul/Hilang
-                            checkVisibility(val) {
-                                if (!val) {
-                                    this.showQuestion = false;
-                                } else if (Array.isArray(val)) {
-                                    // JIKA CHECKBOX (ARRAY): Cek apakah mengandung kata kunci (misal 'Lainnya')
-                                    this.showQuestion = val.includes(this.triggerVal);
-                                } else {
-                                    // JIKA RADIO (STRING): Cek kesamaan biasa
-                                    this.showQuestion = (val == this.triggerVal);
-                                }
-
-                                // Jika sembunyi, hapus jawaban agar tidak tersimpan kotor
-                                if (!this.showQuestion) {
-                                    delete $store.answersStore.answers[<?php echo $id; ?>];
-                                }
-                                
-                                // Update Progress Bar
-                                $dispatch('recalc-progress');
-                            }
-                        }"
+                        x-data="{ isVisible: true }"
                         
-                        x-show="showQuestion"
+                        x-effect="
+                            // 1. Ambil ID & Value Dependency dengan AMAN (Pakai json_encode)
+                            const parentId = <?php echo json_encode($q['dependency_id']); ?>;
+                            const triggerKeyword = <?php echo json_encode($q['dependency_value']); ?>;
+
+                            // 2. Jika tidak punya induk (Pertanyaan Utama), Selalu Muncul
+                            if (!parentId) { 
+                                isVisible = true; 
+                            } else {
+                                // 3. Ambil jawaban dari pertanyaan induk
+                                const parentAnswer = $store.answersStore.answers[parentId];
+
+                                // Jika belum dijawab -> Sembunyi
+                                if (!parentAnswer) {
+                                    isVisible = false;
+                                } 
+                                // Jika Induknya CHECKBOX (Array) -> Cek apakah mengandung kata kunci
+                                else if (Array.isArray(parentAnswer)) {
+                                    // Fuzzy Search: Cek apakah salah satu pilihan mengandung kata kunci (misal: 'Lainnya')
+                                    isVisible = parentAnswer.some(val => val && val.includes(triggerKeyword));
+                                } 
+                                // Jika Induknya RADIO (String) -> Cek apakah mengandung kata kunci
+                                else {
+                                    isVisible = parentAnswer.includes(triggerKeyword);
+                                }
+
+                                // Bersihkan jawaban jika pertanyaan disembunyikan (agar database bersih)
+                                if (!isVisible) {
+                                    delete $store.answersStore.answers[<?php echo $id; ?>];
+                                    // $dispatch('recalc-progress'); // Opsional: Aktifkan jika ada progress bar
+                                }
+                            }
+                        "
+                        
+                        x-show="isVisible"
                         x-transition:enter="transition ease-out duration-300"
                         x-transition:enter-start="opacity-0 transform scale-95"
                         x-transition:enter-end="opacity-100 transform scale-100"
