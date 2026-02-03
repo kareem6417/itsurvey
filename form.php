@@ -235,58 +235,51 @@ foreach ($questionsDB as $q) {
                         :class="isDark ? 'bg-slate-800 border-slate-700 hover:border-slate-600' : 'bg-white border-slate-100 hover:shadow-lg'"
                         style="animation-delay: <?php echo $delay; ?>s;"
                         
-                        /* LOGIKA X-DATA YANG DIPERBAIKI (FUZZY MATCH) */
+                        /* LOGIKA BARU (SUPPORT CHECKBOX ARRAY) */
                         x-data="{
                             showQuestion: true, 
                             parentId: <?php echo json_encode($q['dependency_id']); ?>,
-                            // Kita ambil kata kunci yang dicari (misal: 'Lainnya')
                             triggerVal: '<?php echo $q['dependency_value']; ?>',
 
                             init() {
-                                // Jika pertanyaan ini punya induk (dependency)
+                                // 1. Cek Dependensi Saat Halaman Dimuat
                                 if (this.parentId) {
-                                    // 1. Cek saat halaman pertama kali dibuka
-                                    this.checkVisibility($store.answersStore.answers[this.parentId]);
+                                    // Ambil nilai jawaban induk saat ini
+                                    let currentVal = $store.answersStore.answers[this.parentId];
+                                    
+                                    // Cek status awal (Visible atau Hidden)
+                                    this.checkVisibility(currentVal);
 
-                                    // 2. Pasang 'mata-mata' ($watch) untuk memantau perubahan realtime
+                                    // 2. Pantau Perubahan Jawaban Induk (Realtime)
                                     this.$watch(`$store.answersStore.answers[${this.parentId}]`, (val) => {
                                         this.checkVisibility(val);
                                     });
                                 }
                             },
 
+                            // Fungsi Cerdas untuk Cek Muncul/Hilang
                             checkVisibility(val) {
-                                // Jika jawaban induk kosong/null -> Sembunyikan
                                 if (!val) {
                                     this.showQuestion = false;
-                                } 
-                                // KASUS A: Jika induknya CHECKBOX (Array)
-                                else if (Array.isArray(val)) {
-                                    // LOGIKA CERDAS: Cek apakah ada SALAH SATU item yg MENGANDUNG triggerVal
-                                    // Contoh: Trigger 'Lainnya' akan cocok dengan 'Lainnya (Others)' maupun 'Lainnya <br>...'
-                                    this.showQuestion = val.some(item => item.includes(this.triggerVal));
-                                } 
-                                // KASUS B: Jika induknya RADIO (String biasa)
-                                else {
-                                    // Cek apakah string mengandung triggerVal
+                                } else if (Array.isArray(val)) {
+                                    // JIKA CHECKBOX (ARRAY): Cek apakah mengandung kata kunci (misal 'Lainnya')
                                     this.showQuestion = val.includes(this.triggerVal);
+                                } else {
+                                    // JIKA RADIO (STRING): Cek kesamaan biasa
+                                    this.showQuestion = (val == this.triggerVal);
                                 }
 
-                                // Jika sembunyi, hapus jawaban agar database bersih
+                                // Jika sembunyi, hapus jawaban agar tidak tersimpan kotor
                                 if (!this.showQuestion) {
-                                    // Hapus jawaban pertanyaan ini dari store
                                     delete $store.answersStore.answers[<?php echo $id; ?>];
                                 }
                                 
-                                // Trigger update progress bar
+                                // Update Progress Bar
                                 $dispatch('recalc-progress');
                             }
                         }"
                         
-                        /* TAMPILKAN JIKA showQuestion TRUE */
                         x-show="showQuestion"
-                        
-                        /* ANIMASI */
                         x-transition:enter="transition ease-out duration-300"
                         x-transition:enter-start="opacity-0 transform scale-95"
                         x-transition:enter-end="opacity-100 transform scale-100"
