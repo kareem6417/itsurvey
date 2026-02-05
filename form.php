@@ -41,7 +41,13 @@ $user = [
 $stmt = $pdo->prepare("
     SELECT * FROM questions 
     WHERE company_id IS NULL OR company_id = ? 
-    ORDER BY COALESCE(dependency_id, id), id ASC
+    ORDER BY 
+        COALESCE(dependency_id, id),     -- 1. Kelompokkan Induk & Anak
+        CASE 
+            WHEN id = 2.1 THEN 0         -- 2. PRIORITAS: Jika ID = 999, taruh di urutan 0 (paling atas)
+            ELSE 1                       --    Sisanya di urutan 1
+        END ASC,
+        id ASC                           -- 3. Urutkan sisanya berdasarkan ID
 ");
 $stmt->execute([$final_company_id]);
 $questionsDB = $stmt->fetchAll(PDO::FETCH_ASSOC);
