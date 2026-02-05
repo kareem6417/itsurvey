@@ -38,17 +38,29 @@ $user = [
 ];
 
 // 5. AMBIL PERTANYAAN
-$stmt = $pdo->prepare("
-    SELECT * FROM questions 
-    WHERE company_id IS NULL OR company_id = ? 
+$sql = "
+    SELECT q.* FROM questions q
+    LEFT JOIN questions p1 ON q.dependency_id = p1.id      -- Join ke Parent (Ayah)
+    LEFT JOIN questions p2 ON p1.dependency_id = p2.id     -- Join ke Grandparent (Kakek)
+    WHERE q.company_id IS NULL OR q.company_id = ?
     ORDER BY 
-        COALESCE(dependency_id, id),     -- 1. Kelompokkan Induk & Anak
+        -- 1. Kelompokkan berdasarkan ID Kakek Buyut (Root ID)
+        COALESCE(p2.id, p1.id, q.id) ASC,
+        
+        -- 2. Urutkan Level Menengah (Ayah/Anak)
         CASE 
-            WHEN id = 2.1 THEN 0         -- 2. PRIORITAS: Jika ID = 999, taruh di urutan 0 (paling atas)
-            ELSE 1                       --    Sisanya di urutan 1
+            WHEN p1.id IS NULL THEN 0                -- Jika ini Kakek, taruh paling atas (0)
+            WHEN p2.id IS NOT NULL THEN p1.id        -- Jika ini Cucu, ikut urutan Ayahnya
+            ELSE q.id                                -- Jika ini Anak, ikut urutan sendiri
         END ASC,
-        id ASC                           -- 3. Urutkan sisanya berdasarkan ID
-");
+        
+        -- 3. Urutkan Level Terbawah (Cucu)
+        CASE 
+            WHEN p2.id IS NOT NULL THEN q.id         -- Jika ini Cucu, urutkan sesuai ID-nya sendiri
+            ELSE 0                                   -- Selain itu taruh di atas
+        END ASC
+";
+$stmt = $pdo->prepare($sql);
 $stmt->execute([$final_company_id]);
 $questionsDB = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
