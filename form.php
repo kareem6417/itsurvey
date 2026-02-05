@@ -38,7 +38,11 @@ $user = [
 ];
 
 // 5. AMBIL PERTANYAAN
-$stmt = $pdo->prepare("SELECT * FROM questions WHERE company_id IS NULL OR company_id = ? ORDER BY id ASC");
+$stmt = $pdo->prepare("
+    SELECT * FROM questions 
+    WHERE company_id IS NULL OR company_id = ? 
+    ORDER BY COALESCE(dependency_id, id), id ASC
+");
 $stmt->execute([$final_company_id]);
 $questionsDB = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
